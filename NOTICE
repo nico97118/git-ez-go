@@ -1,0 +1,17 @@
+git-ez — Go implementation
+Copyright 2026 git-ez contributors
+Project-owned source is licensed GPL-3.0-only; see LICENSE.
+
+Functional reference and attribution:
+Python git-ez, commit 69693f61ea5a1d668f103eb3dec0309efde08dbe.
+The Go migration preserves the reference's attribution and GPL-3.0-only terms.
+Reference test names and synthetic historical journal fixtures are retained for
+compatibility qualification; they are not a Python runtime dependency.
+
+Genkit and the OpenAI Go SDK, and their linked dependencies, retain their own
+licenses. Exact classifications are recorded in third_party/licenses.csv.
+Complete retained license texts are under third_party/licenses/.
+Go's LICENSE, PATENTS and relevant bundled third-party terms are under third_party/go/.
+Release archives contain exact inventories and per-target SBOMs. The matching
+source bundle accompanies each binary archive, including vendored dependencies
+and exact Go standard-library sources. No model weights or Git executable are bundled.

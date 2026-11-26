@@ -1,0 +1,16 @@
+/bin/
+/dist/
+/vendor/
+/.cache/
+/coverage.out
+/coverage.*
+*.test
+*.prof
+__pycache__/
+*.py[cod]
+.DS_Store
+._*
+.env
+.env.*
+*.pem
+*.key

@@ -1,0 +1,325 @@
+{
+  "reference": "69693f61ea5a1d668f103eb3dec0309efde08dbe",
+  "versions": {
+    "langchain-ollama": "1.1.0",
+    "langchain-core": "1.8.4",
+    "ollama": "0.6.3",
+    "pydantic": "2.14.4"
+  },
+  "model_requests": 0,
+  "cases": [
+    {
+      "request_options": {},
+      "wire": {
+        "options": {
+          "num_ctx": 32768,
+          "num_predict": 8192
+        }
+      }
+    },
+    {
+      "request_options": {
+        "options": {
+          "temperature": 0.2
+        }
+      },
+      "wire": {
+        "options": {
+          "num_ctx": 32768,
+          "num_predict": 8192,
+          "temperature": 0.2
+        }
+      }
+    },
+    {
+      "request_options": {
+        "options": {
+          "temperature": 0.2
+        },
+        "temperature": 0.4
+      },
+      "wire": {
+        "options": {
+          "num_ctx": 32768,
+          "num_predict": 8192,
+          "temperature": 0.4
+        }
+      }
+    },
+    {
+      "request_options": {
+        "think": false
+      },
+      "wire": {
+        "think": false,
+        "options": {
+          "num_ctx": 32768,
+          "num_predict": 8192
+        }
+      }
+    },
+    {
+      "request_options": {
+        "think": "low"
+      },
+      "wire": {
+        "think": "low",
+        "options": {
+          "num_ctx": 32768,
+          "num_predict": 8192
+        }
+      }
+    },
+    {
+      "request_options": {
+        "think": false,
+        "reasoning": true
+      },
+      "wire": {
+        "think": false,
+        "options": {
+          "num_ctx": 32768,
+          "num_predict": 8192
+        }
+      }
+    },
+    {
+      "request_options": {
+        "num_predict": 512,
+        "num_ctx": 16384
+      },
+      "wire": {
+        "options": {
+          "num_ctx": 16384,
+          "num_predict": 512
+        }
+      }
+    },
+    {
+      "request_options": {
+        "stop": [
+          "END"
+        ],
+        "seed": 42,
+        "top_k": 10,
+        "top_p": 0.9
+      },
+      "wire": {
+        "options": {
+          "num_ctx": 32768,
+          "num_predict": 8192,
+          "seed": 42,
+          "stop": [
+            "END"
+          ],
+          "top_k": 10,
+          "top_p": 0.9
+        }
+      }
+    },
+    {
+      "request_options": {
+        "logprobs": true,
+        "top_logprobs": 2
+      },
+      "wire": {
+        "logprobs": true,
+        "top_logprobs": 2,
+        "options": {
+          "num_ctx": 32768,
+          "num_predict": 8192
+        }
+      }
+    },
+    {
+      "request_options": {
+        "top_logprobs": 2
+      },
+      "wire": {
+        "logprobs": true,
+        "top_logprobs": 2,
+        "options": {
+          "num_ctx": 32768,
+          "num_predict": 8192
+        }
+      }
+    },
+    {
+      "request_options": {
+        "logprobs": false,
+        "top_logprobs": 2
+      },
+      "error_type": "ValidationError"
+    },
+    {
+      "request_options": {
+        "keep_alive": "5m"
+      },
+      "wire": {
+        "options": {
+          "num_ctx": 32768,
+          "num_predict": 8192
+        },
+        "keep_alive": "5m"
+      }
+    },
+    {
+      "request_options": {
+        "keep_alive": 0
+      },
+      "wire": {
+        "options": {
+          "num_ctx": 32768,
+          "num_predict": 8192
+        },
+        "keep_alive": 0
+      }
+    },
+    {
+      "request_options": {
+        "temperature": "0.2",
+        "num_predict": "512"
+      },
+      "wire": {
+        "options": {
+          "num_ctx": 32768,
+          "num_predict": 512,
+          "temperature": 0.2
+        }
+      }
+    },
+    {
+      "request_options": {
+        "temperature": null,
+        "stop": null,
+        "keep_alive": null,
+        "reasoning": null
+      },
+      "wire": {
+        "options": {
+          "num_ctx": 32768,
+          "num_predict": 8192
+        }
+      }
+    },
+    {
+      "request_options": {
+        "mirostat": 1,
+        "mirostat_eta": 0.1,
+        "mirostat_tau": 5,
+        "num_gpu": 0,
+        "num_thread": 2,
+        "repeat_last_n": 16,
+        "repeat_penalty": 1.1,
+        "tfs_z": 1
+      },
+      "wire": {
+        "options": {
+          "mirostat": 1,
+          "mirostat_eta": 0.1,
+          "mirostat_tau": 5.0,
+          "num_ctx": 32768,
+          "num_gpu": 0,
+          "num_thread": 2,
+          "num_predict": 8192,
+          "repeat_last_n": 16,
+          "repeat_penalty": 1.1,
+          "tfs_z": 1.0
+        }
+      }
+    },
+    {
+      "request_options": {
+        "name": "local",
+        "tags": [
+          "a"
+        ],
+        "metadata": {
+          "label": "x"
+        },
+        "disable_streaming": "tool_calling",
+        "verbose": false,
+        "cache": false,
+        "custom_get_token_ids": null,
+        "rate_limiter": null,
+        "output_version": "v1"
+      },
+      "wire": {
+        "options": {
+          "num_ctx": 32768,
+          "num_predict": 8192
+        }
+      }
+    },
+    {
+      "request_options": {
+        "options": "bad"
+      },
+      "error_type": "EzError"
+    },
+    {
+      "request_options": {
+        "unexpected": true
+      },
+      "error_type": "EzError"
+    },
+    {
+      "request_options": {
+        "options": {
+          "unexpected": true
+        }
+      },
+      "error_type": "EzError"
+    },
+    {
+      "request_options": {
+        "stop": [
+          1
+        ]
+      },
+      "error_type": "ValidationError"
+    },
+    {
+      "request_options": {
+        "temperature": "bad"
+      },
+      "error_type": "ValidationError"
+    },
+    {
+      "request_options": {
+        "logprobs": "yes"
+      },
+      "wire": {
+        "logprobs": true,
+        "options": {
+          "num_ctx": 32768,
+          "num_predict": 8192
+        }
+      }
+    },
+    {
+      "request_options": {
+        "callbacks": null
+      },
+      "error_type": "EzError"
+    },
+    {
+      "request_options": {
+        "client_kwargs": {}
+      },
+      "error_type": "EzError"
+    },
+    {
+      "request_options": {
+        "format": "json"
+      },
+      "error_type": "ValueError"
+    },
+    {
+      "request_options": {
+        "model": "override"
+      },
+      "error_type": "ValueError"
+    }
+  ]
+}

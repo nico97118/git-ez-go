@@ -1,0 +1,6 @@
+{
+  "reference": "69693f61ea5a1d668f103eb3dec0309efde08dbe",
+  "writer": "Pinned git_ez.audit.Audit",
+  "model_requests": 0,
+  "scope": "Actual writer/report APIs; opaque legacy-style message data, not a model SDK execution"
+}

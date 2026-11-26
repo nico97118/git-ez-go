@@ -1,0 +1,14 @@
+{
+  "files": [
+    {
+      "path": "file.txt",
+      "state": "file",
+      "artifact": "files/0001.bin",
+      "size": 9,
+      "recorded_bytes": 9,
+      "truncated": false,
+      "mode": 33188
+    }
+  ],
+  "capture_errors": []
+}

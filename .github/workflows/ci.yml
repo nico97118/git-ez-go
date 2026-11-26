@@ -1,0 +1,70 @@
+name: CI
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  GOTOOLCHAIN: local
+  GOTELEMETRY: 'off'
+jobs:
+  native:
+    name: Native (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm, macos-15, macos-15-intel]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: .go-version
+          cache: true
+      - run: sh scripts/ci.sh
+  freebsd:
+    name: Native (FreeBSD amd64 VM)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: vmactions/freebsd-vm@811efaaac0668df8bfb8308c3ec997b5ab50037b # v1.5.9
+        with:
+          release: '15.0'
+          mem: 6144
+          usesh: true
+          copyback: false
+          prepare: |
+            pkg install -y git go python3
+            pw useradd qualifier -m
+            chmod -R a+rX .
+          run: |
+            su -m qualifier -c 'env HOME=/home/qualifier GOPATH=/home/qualifier/go GOCACHE=/home/qualifier/cache GOTOOLCHAIN=local GOTELEMETRY=off sh scripts/ci.sh'
+  checks:
+    name: Workflows, dependencies and six-target builds
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: .go-version
+          cache: true
+      - name: Install pinned development tools
+        run: |
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+          go install golang.org/x/vuln/cmd/govulncheck@v1.10.0
+      - run: actionlint
+      - run: govulncheck ./...
+      - run: python3 scripts/build.py --output "$RUNNER_TEMP/builds" --evidence "$RUNNER_TEMP/builds.json"

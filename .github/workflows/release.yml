@@ -1,0 +1,82 @@
+name: Release engineering
+on:
+  workflow_dispatch:
+    inputs:
+      revision:
+        description: Source revision to package (no publication)
+        required: true
+        default: main
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+env:
+  GOTOOLCHAIN: local
+  GOTELEMETRY: 'off'
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    outputs:
+      commit: ${{ steps.source.outputs.commit }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ inputs.revision || github.ref }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: .go-version
+          cache: false
+      - id: source
+        run: echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Package selected commit
+        env:
+          SOURCE_COMMIT: ${{ steps.source.outputs.commit }}
+        run: |
+          python3 scripts/release.py --revision "$SOURCE_COMMIT" --output dist
+          python3 scripts/verify-release.py dist
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: release-assets
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
+  publish:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && vars.RELEASE_PUBLICATION_ENABLED == 'true'
+    needs: build
+    runs-on: ubuntu-24.04
+    environment: release
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: release-assets
+          path: dist
+      - name: Verify publication source and assets
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          SOURCE_COMMIT: ${{ needs.build.outputs.commit }}
+        run: |
+          python3 scripts/verify-release.py dist --publication
+          python3 - <<'PYTHON'
+          import json,os,subprocess
+          p=json.load(open('dist/PROVENANCE.json'))
+          tag=os.environ['RELEASE_TAG']
+          commit=subprocess.check_output(['git','rev-parse','--verify','refs/tags/'+tag+'^{commit}'],text=True).strip()
+          assert p['version']==tag and p['tag']==tag
+          assert p['source_commit']==commit==os.environ['SOURCE_COMMIT']
+          subprocess.run(['git','merge-base','--is-ancestor',commit,'HEAD'],check=True)
+          PYTHON
+      - name: Publish approved tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: gh release create "$RELEASE_TAG" --verify-tag --title "$RELEASE_TAG" --notes 'See README, acceptance status and bundled provenance before installation.' dist/*

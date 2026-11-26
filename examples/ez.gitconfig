@@ -1,0 +1,16 @@
+# Standard Git configuration. Copy the chosen settings into your global or local config.
+# No path to this file or to the git-ez checkout is required at runtime.
+[ez]
+    provider = openai
+    model = exact-model-id-on-your-server
+    endpoint = https://your-model-server.example/v1
+    apiKeyEnv = INTERNAL_AI_TOKEN
+    # caBundle = /absolute/path/to/internal-ca.pem
+    timeout = 600
+    minConfidence = 0.85
+    maxFileBytes = 256k
+    modelContextTokens = 32768
+    modelMaxOutputTokens = 8192
+    agentMaxTurns = 40
+    agentMaxToolCalls = 100
+    # requestOptions = "{\"chat_template_kwargs\":{\"enable_thinking\":false}}"

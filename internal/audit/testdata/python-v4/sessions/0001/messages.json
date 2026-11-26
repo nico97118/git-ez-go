@@ -1,0 +1,14 @@
+[
+  {
+    "lc": 1,
+    "type": "constructor",
+    "id": [
+      "langchain",
+      "schema",
+      "AIMessage"
+    ],
+    "kwargs": {
+      "content": "combined"
+    }
+  }
+]
