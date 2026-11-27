@@ -54,7 +54,17 @@ require(len(archives) == 7, 'Expected seven archives')
 targets = set()
 source_name = 'git-ez_' + provenance['version'] + '_source.tar.gz'
 require(source_name in listed, 'Missing source bundle')
-for file in archives:
+require(provenance.get('source_archive') == source_name
+        and provenance.get('source_distribution') == 'separate-release-asset',
+        'Invalid separate-source association')
+if args.publication:
+    repository = provenance.get('repository', '')
+    require(isinstance(repository, str) and re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', repository),
+            'Missing publication repository')
+    expected_url = f"https://github.com/{repository}/releases/download/{provenance['tag']}/{source_name}"
+    require(provenance.get('source_url') == expected_url, 'Wrong source download URL')
+source_license_hashes = {}
+for file in sorted(archives, key=lambda f: f.name != source_name):
     with tarfile.open(file) as tar:
         names = tar.getnames()
         require(len(names) == len(set(names)), 'Duplicate tar member')
@@ -67,6 +77,10 @@ for file in archives:
                     and member.isfile() and member.name.startswith(prefix),
                     'Unsafe archive member: ' + member.name)
         if file.name == source_name:
+            source_provenance = json.load(tar.extractfile(prefix + 'PROVENANCE.json'))
+            require(source_provenance == provenance, 'Source provenance mismatch')
+            source_dependencies = digest(tar.extractfile(prefix + 'DEPENDENCIES.json'))
+            require(source_dependencies == listed['DEPENDENCIES.json'], 'Source dependency mismatch')
             manifest = json.load(tar.extractfile(prefix + 'SOURCE-MANIFEST.json'))
             require(manifest['source_tree'] == provenance['source_tree'], 'Wrong source tree')
             require(set(names) == {prefix + name for name in manifest['files']}
@@ -74,8 +88,12 @@ for file in archives:
             for name, expected in manifest['files'].items():
                 require(digest(tar.extractfile(prefix + name)) == expected,
                         'Source hash mismatch: ' + name)
+            for name in names:
+                relative = name[len(prefix):]
+                if relative.startswith(('third_party/', 'docs/')) or relative in ('LICENSE', 'NOTICE', 'README.md', 'SECURITY.md'):
+                    source_license_hashes[relative] = digest(tar.extractfile(name))
             continue
-        required = ['git-ez', 'LICENSE', 'NOTICE', 'SOURCE.tar.gz', 'BUILD.json',
+        required = ['git-ez', 'LICENSE', 'NOTICE', 'SOURCE.txt', 'BUILD.json',
                     'SBOM.cdx.json', 'DEPENDENCIES.json']
         require(all(prefix + name in names for name in required), 'Incomplete archive')
         metadata = json.load(tar.extractfile(prefix + 'BUILD.json'))
@@ -89,9 +107,23 @@ for file in archives:
         require(tar.getmember(prefix + 'git-ez').mode == 0o755, 'Binary is not executable')
         require(digest(tar.extractfile(prefix + 'git-ez')) == metadata['binary_sha256'],
                 'Binary hash mismatch')
-        require(digest(tar.extractfile(prefix + 'SOURCE.tar.gz'))
-                == metadata['source_archive_sha256'] == listed[source_name],
+        require(not any(name.endswith('.tar.gz') for name in names), 'Unexpected embedded source archive')
+        require(metadata['source_archive'] == source_name
+                and metadata['source_archive_sha256'] == listed[source_name],
                 'Corresponding-source mismatch')
+        reference = tar.extractfile(prefix + 'SOURCE.txt').read().decode()
+        require(source_name in reference and listed[source_name] in reference
+                and (not args.publication or provenance['source_url'] in reference),
+                'Incomplete source directions')
+        for name, expected in source_license_hashes.items():
+            require(prefix + name in names and digest(tar.extractfile(prefix + name)) == expected,
+                    'Missing or modified distribution license/document: ' + name)
+        require(digest(tar.extractfile(prefix + 'DEPENDENCIES.json')) == listed['DEPENDENCIES.json'],
+                'Binary dependency mismatch')
+        sbom = json.load(tar.extractfile(prefix + 'SBOM.cdx.json'))
+        properties = {item['name']: item['value'] for item in sbom['metadata']['properties']}
+        require(properties['binary.sha256'] == metadata['binary_sha256']
+                and properties['target'] == target, 'SBOM association mismatch')
 require(targets == {system + '/' + arch for system in ['linux', 'freebsd', 'darwin']
                     for arch in ['amd64', 'arm64']}, 'Incomplete target matrix')
 print(json.dumps({'checksums_verified': len(listed), 'archives_verified': len(archives),

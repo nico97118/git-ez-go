@@ -13,7 +13,7 @@ for system in ('linux','freebsd','darwin'):
   env.update(GOOS=system,GOARCH=arch)
   subprocess.run([a.go,'build','-buildvcs=false','./...'],env=env,check=True)
   binary=out/f'git-ez-{system}-{arch}'
-  subprocess.run([a.go,'build','-buildvcs=false','-trimpath','-ldflags','-buildid= -X main.version='+a.version,'-o',str(binary),'./cmd/git-ez'],env=env,check=True)
+  subprocess.run([a.go,'build','-buildvcs=false','-trimpath','-ldflags','-s -w -buildid= -X main.version='+a.version,'-o',str(binary),'./cmd/git-ez'],env=env,check=True)
   info=run([a.go,'version','-m',str(binary)])
   linked=json.loads(run([a.go,'version','-m','-json',str(binary)]))
   records.append(dict(linked_modules=linked.get('Deps',[]),target=f'{system}/{arch}',cgo_enabled=False,all_packages_built=True,sha256=hashlib.sha256(binary.read_bytes()).hexdigest(),bytes=binary.stat().st_size,build_info='git-ez: '+info.split(': ',1)[-1]))

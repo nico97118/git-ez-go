@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 git-ez contributors
 # SPDX-License-Identifier: GPL-3.0-only
-"""Build verifiable, self-contained distribution archives. Never publishes."""
+"""Build verifiable binary archives and separate complete corresponding source. Never publishes."""
 import argparse
 import gzip
 import hashlib
@@ -47,6 +47,11 @@ else:
     version = tag or '0.0.0-dev.' + revision[:12]
 assert re.fullmatch('[0-9a-f]{40,64}', tree)
 toolchain = command([a.go, 'env', 'GOVERSION'])
+source_name = 'git-ez_' + version + '_source.tar.gz'
+repository = os.environ.get('GITHUB_REPOSITORY')
+source_url = None
+if tag and repository and re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', repository):
+    source_url = f'https://github.com/{repository}/releases/download/{tag}/{source_name}'
 provenance = {
     'product': 'git-ez',
     'version': version,
@@ -58,10 +63,13 @@ provenance = {
     'source_date_epoch': epoch,
     'go_version': toolchain,
     'cgo_enabled': False,
-    'flags': ['-trimpath', '-buildvcs=false', '-ldflags=-buildid= -X main.version=' + version],
+    'flags': ['-trimpath', '-buildvcs=false', '-ldflags=-s -w -buildid= -X main.version=' + version],
     'repository': os.environ.get('GITHUB_REPOSITORY'),
     'workflow_run': os.environ.get('GITHUB_RUN_ID'),
     'provenance_signed': False,
+    'source_distribution': 'separate-release-asset',
+    'source_archive': source_name,
+    'source_url': source_url,
 }
 
 def dump(path, value):
@@ -127,7 +135,6 @@ with tempfile.TemporaryDirectory(prefix='git-ez-release-') as temporary:
     shutil.copy2(evidence / 'PROVENANCE.json', source / 'PROVENANCE.json')
     files = [f for f in source.rglob('*') if f.is_file()]
     dump(source / 'SOURCE-MANIFEST.json', {'source_tree': tree, 'files': {str(f.relative_to(source)): sha(f) for f in sorted(files)}})
-    source_name = 'git-ez_' + version + '_source.tar.gz'
     source_archive = output / source_name
     archive(source_archive, [(str(pathlib.Path('git-ez-source') / f.relative_to(source)), f) for f in source.rglob('*') if f.is_file()])
     for system in ['linux', 'freebsd', 'darwin']:
@@ -139,7 +146,16 @@ with tempfile.TemporaryDirectory(prefix='git-ez-release-') as temporary:
                 shutil.copy2(source / name, staging / name)
             shutil.copytree(source / 'docs', staging / 'docs')
             shutil.copytree(source / 'third_party', staging / 'third_party')
-            shutil.copy2(source_archive, staging / 'SOURCE.tar.gz')
+            (staging / 'SOURCE.txt').write_text(
+                'Complete Corresponding Source — GPL-3.0-only section 6(d)\n\n'
+                + 'Download ' + source_name + ' from the same GitHub Release Assets\n'
+                + 'as this binary archive, with equivalent access at no additional charge.\n'
+                + 'For unpublished local packages, use the sibling source archive.\n'
+                + 'SHA-256: ' + sha(source_archive) + '\n'
+                + 'Version: ' + version + '\nSource tree: ' + tree + '\n'
+                + ('Download URL: ' + source_url + '\n' if source_url else '')
+                + 'Do not substitute GitHub automatically generated source archives.\n'
+                + 'See BUILD.json and docs/installation.md for verification/rebuilding.\n')
             shutil.copy2(evidence / f'{system}-{arch}.cdx.json', staging / 'SBOM.cdx.json')
             shutil.copy2(evidence / 'DEPENDENCIES.json', staging / 'DEPENDENCIES.json')
             dump(staging / 'BUILD.json', {**provenance, 'target': system + '/' + arch, 'binary_sha256': sha(staging / 'git-ez'), 'source_archive': source_name, 'source_archive_sha256': sha(source_archive), 'build_info': json.loads((evidence / f'{system}-{arch}.buildinfo.json').read_text())})

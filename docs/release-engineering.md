@@ -25,20 +25,33 @@ corruption, not authenticity; obtain them from a trusted channel.
 The stdlib Python scripts are preferred over GoReleaser: six archives, checksums,
 source bundling and inventories need no additional packaging dependency. Source
 selection uses `git archive`; unrelated working-tree changes are excluded.
-Builds disable CGO and VCS auto-stamping, use trimpath and an empty build ID.
+Production builds disable CGO and VCS auto-stamping, use trimpath, an empty build ID
+and linker `-s -w`. Development builds keep their default debug information.
+`-s` omits the symbol table and debug information (and implies `-w`); the explicit
+pair documents the distribution policy. Runtime stack traces remain available,
+but symbol/debugger inspection of the shipped binary is limited. Rebuild the exact
+source without these flags for debugging; no extra debug archive is published.
+See the [Go linker documentation](https://pkg.go.dev/cmd/link) and
+[debugging guidance](https://go.dev/doc/gdb).
 Tar/gzip ordering, timestamps, permissions and ownership are normalized. Exact
 byte reproducibility depends on the same source, SDK and provenance environment;
 a second independently built matching manifest is evidence, not a blanket promise.
 
 Each of six archives contains the executable, documentation, complete GPL license,
 NOTICE, third-party license texts, per-target CycloneDX SBOM, exact dependency
-inventory, BUILD metadata and a complete corresponding `SOURCE.tar.gz`.
-The same source bundle is also a separate seventh archive. It includes the selected
+inventory, BUILD metadata and `SOURCE.txt` identifying the separate complete source
+archive by filename, SHA-256 and (for published tags) a direct release download URL.
+There is one complete source archive per release, the seventh archive overall. It includes the selected
 project tree, vendored modules, exact Go standard-library/runtime sources, upstream
 licenses, build scripts and a SHA-256 source manifest (excluding itself). The SDK
 compiler, native Git, operating system and model weights are not redistributed.
 Rebuild with the matching SDK and `GOPROXY=off go build -mod=vendor ./cmd/git-ez`.
-Source is delivered with each binary; no time-limited written source offer is used.
+Source and all six binaries must be offered together in the same GitHub Release
+Assets, with equivalent access at no additional charge, under GPL-3.0 section 6(d).
+Recipients need not download source to install the binary. Maintain source access
+for as long as needed to satisfy that provision, including after binary mirroring.
+No time-limited written source offer or automatically generated GitHub source archive
+is substituted for the complete archive. See [GPL section 6](https://www.gnu.org/licenses/gpl-3.0.html#section6).
 
 ## CI choices and boundaries
 
@@ -76,10 +89,13 @@ results are dated observations of the Go database, not a guarantee of absence.
 Tag pushes prepare artifacts in a read-only job. Publication requires all of:
 `RELEASE_PUBLICATION_ENABLED=true`, a `v*` tag event, and approval of the protected
 `release` environment. Only that separate job has `contents: write`. It checks out
-the trusted default branch, verifies every artifact checksum and embedded binary /
-source hash, verifies the tag's immutable commit against provenance and build output,
+the trusted default branch, verifies every artifact checksum, binary hash and the separate
+source archive association, verifies the tag's immutable commit against provenance and build output,
 and requires that commit to be an ancestor of the checked-out default branch.
-Only the final `gh release create --verify-tag` step receives the publication token.
+Publication first creates a draft with all assets, downloads/verifies that draft
+and compares its checksums with the qualified files, then makes it public. A failed
+upload/verification leaves a draft for maintainer inspection, never a public partial
+release. The publication token is limited to those final upload/verification steps.
 Artifacts from this workflow run are used; no arbitrary user artifact URL is accepted.
 
 These protections require remote settings: configure `release` required reviewers,
@@ -96,7 +112,7 @@ and [workflow syntax](https://docs.github.com/en/actions/reference/workflows-and
 ## Future hosting, only after maintainer authorization
 
 1. Confirm the repository/module name, license/notice inventory, security reporting
-   channel and open acceptance gates in `assessment/readiness.md`.
+   channel and open acceptance gates in `docs/qualification.md`.
 2. Create an empty GitHub repository under the explicitly approved owner/name;
    do not initialize a competing README/license/history remotely.
 3. Add the approved URL with `git remote add origin APPROVED_URL`, verify it using
@@ -111,5 +127,5 @@ and [workflow syntax](https://docs.github.com/en/actions/reference/workflows-and
 For local native archive qualification, run
 `python3 scripts/check-package.py /tmp/git-ez-release --evidence /tmp/package-check.json`.
 It verifies all assets, tests Git extension discovery, then rebuilds the native
-binary from the embedded source with empty module/build caches and dependency
+binary from the separate complete source archive with empty module/build caches and dependency
 network access disabled. The rebuilt binary must match byte for byte.

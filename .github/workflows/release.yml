@@ -37,6 +37,9 @@ jobs:
         run: |
           python3 scripts/release.py --revision "$SOURCE_COMMIT" --output dist
           python3 scripts/verify-release.py dist
+          python3 scripts/test-release.py dist
+      - name: Verify native offline installation and source rebuild
+        run: python3 scripts/check-package.py dist --evidence "$RUNNER_TEMP/package-check.json"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: release-assets
@@ -72,11 +75,22 @@ jobs:
           tag=os.environ['RELEASE_TAG']
           commit=subprocess.check_output(['git','rev-parse','--verify','refs/tags/'+tag+'^{commit}'],text=True).strip()
           assert p['version']==tag and p['tag']==tag
+          assert p['repository']==os.environ['GITHUB_REPOSITORY']
           assert p['source_commit']==commit==os.environ['SOURCE_COMMIT']
           subprocess.run(['git','merge-base','--is-ancestor',commit,'HEAD'],check=True)
           PYTHON
-      - name: Publish approved tag
+      - name: Publish approved tag and corresponding source together
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.ref_name }}
-        run: gh release create "$RELEASE_TAG" --verify-tag --title "$RELEASE_TAG" --notes 'See README, acceptance status and bundled provenance before installation.' dist/*
+        run: |
+          gh release create "$RELEASE_TAG" --verify-tag --title "$RELEASE_TAG" --draft --notes "Complete Corresponding Source: git-ez_${RELEASE_TAG}_source.tar.gz in this release Assets, at no additional charge alongside all binaries. SOURCE.txt and BUILD.json in each binary archive identify its checksum. See README and provenance before installation." dist/*
+      - name: Verify uploaded assets before making release public
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          gh release download "$RELEASE_TAG" --dir "$RUNNER_TEMP/published-assets"
+          python3 scripts/verify-release.py "$RUNNER_TEMP/published-assets" --publication
+          cmp dist/SHA256SUMS "$RUNNER_TEMP/published-assets/SHA256SUMS"
+          gh release edit "$RELEASE_TAG" --draft=false

@@ -34,8 +34,8 @@ git ez --version
 Replace `VERSION` and the target with the downloaded archive's actual names.
 For FreeBSD's base tools use `sha256 ARCHIVE` and compare its digest with the
 trusted checksum file. Checksums detect changes; obtain both binaries and checksums
-from an authenticated source. Archives include licenses and the matching complete
-source bundle. [Offline installation, upgrades and removal](docs/installation.md).
+from an authenticated source. Binary archives include licenses and a `SOURCE.txt` reference to the matching
+complete source archive, available separately in the same release. [Offline installation, upgrades and removal](docs/installation.md).
 
 ## Quick start
 
@@ -134,7 +134,7 @@ See [development/testing](CONTRIBUTING.md) and [release engineering](docs/releas
 Six targets are built: Linux, FreeBSD and macOS, each amd64 and arm64. Local native
 qualification covers arm64 on all three OSes; amd64 execution awaits CI or native
 qualification. Compilation and workflow definitions are not evidence of native execution.
-[Current acceptance gaps](assessment/readiness.md).
+[Current acceptance gaps](docs/qualification.md).
 
 The Go implementation is based on the Python git-ez functional reference pinned to
 `69693f61ea5a1d668f103eb3dec0309efde08dbe`. [Python migration](docs/migration.md),

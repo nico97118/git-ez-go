@@ -44,8 +44,8 @@ with tempfile.TemporaryDirectory(prefix='git-ez-package-check-') as temporary:
     version = subprocess.check_output(['git', 'ez', '--version'], env=env, text=True).strip()
     assert metadata['version'] in version, version
     subprocess.run([str(binary), '--help'], env=env, check=True, stdout=subprocess.DEVNULL)
-    # Complete source is already authenticated by the outer and nested hashes.
-    with tarfile.open(package / 'SOURCE.tar.gz') as tar:
+    # The separately supplied source is authenticated by its hash and provenance.
+    with tarfile.open(assets / metadata['source_archive']) as tar:
         tar.extractall(root, filter='data')
     source = root / 'git-ez-source'
     sdk = subprocess.check_output([args.go, 'env', 'GOVERSION'], env=env, text=True).strip()
@@ -55,7 +55,7 @@ with tempfile.TemporaryDirectory(prefix='git-ez-package-check-') as temporary:
                CGO_ENABLED='0', GOFLAGS='', GOEXPERIMENT='', GOAMD64='v1', GOARM64='v8.0')
     rebuilt = root / 'rebuilt'
     subprocess.run([args.go, 'build', '-mod=vendor', '-buildvcs=false', '-trimpath',
-                    '-ldflags', '-buildid= -X main.version=' + metadata['version'],
+                    '-ldflags', '-s -w -buildid= -X main.version=' + metadata['version'],
                     '-o', str(rebuilt), './cmd/git-ez'], cwd=source, env=env, check=True)
     sha = lambda path: hashlib.sha256(path.read_bytes()).hexdigest()
     assert sha(rebuilt) == sha(binary), 'Offline rebuild differs from distributed binary'

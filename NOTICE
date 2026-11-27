@@ -13,5 +13,6 @@ licenses. Exact classifications are recorded in third_party/licenses.csv.
 Complete retained license texts are under third_party/licenses/.
 Go's LICENSE, PATENTS and relevant bundled third-party terms are under third_party/go/.
 Release archives contain exact inventories and per-target SBOMs. The matching
-source bundle accompanies each binary archive, including vendored dependencies
-and exact Go standard-library sources. No model weights or Git executable are bundled.
+complete source archive is offered separately alongside all binary archives in
+the same release, including vendored dependencies and exact Go standard-library
+sources. SOURCE.txt and BUILD.json identify its exact filename and SHA-256. No model weights or Git executable are bundled.

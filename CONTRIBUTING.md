@@ -26,7 +26,8 @@ boundary. Test stdout/stderr failures independently from mandatory evidence loss
 never permit acceptance after failed checks or restore files while cleanup is uncertain.
 Use gofmt and explicit contexts/errors. Do not add a dependency without a concrete
 purpose and license review. Do not translate implementation-specific Python tests
-mechanically; see the [reference matrix](assessment/reference-tests.csv).
+mechanically. Local migration evidence is not a prerequisite for contributing.
+See the [qualification status](docs/qualification.md) for open acceptance requirements.
 
 Installed CLI checks accept explicit binary/evidence paths:
 

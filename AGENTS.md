@@ -26,7 +26,9 @@ Run gofmt, go vet ./..., go mod verify, CGO_ENABLED=0 go test ./... and native
 race tests where supported. Run scripts/build.py for platform/process changes.
 Use real temporary Git repositories, self-process helpers and scripted model
 fixtures. Normal tests must not change global Git settings or invoke real models.
-Keep traceability in assessment/; related primitives alone do not establish coverage.
+Keep local migration traceability in ignored assessment/; do not track private
+evidence or require it for normal builds/tests. Public acceptance requirements
+belong in docs/qualification.md. Related primitives alone do not establish coverage.
 Preserve the approved lexical metadata/no-follow deviation and its regression.
 
 Real-model testing is explicitly opt-in and separately authorized. Do not repeat
