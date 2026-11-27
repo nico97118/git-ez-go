@@ -25,6 +25,7 @@ cases = {
     'source association': ('BUILD.json', 'Corresponding-source mismatch'),
     'source directions': ('SOURCE.txt', 'Incomplete source directions'),
     'license completeness': ('third_party/go/LICENSE', 'Missing or modified distribution license/document'),
+    'manual completeness': ('docs/man/git-ez.1', 'Incomplete archive'),
     'SBOM association': ('SBOM.cdx.json', 'SBOM association mismatch'),
 }
 for label, (suffix, diagnostic) in cases.items():
@@ -42,7 +43,7 @@ for label, (suffix, diagnostic) in cases.items():
                         raw = json.dumps(value).encode()
                     elif suffix == 'SOURCE.txt':
                         raw = b'Source unavailable\n'
-                    elif suffix == 'third_party/go/LICENSE':
+                    elif suffix in ('third_party/go/LICENSE', 'docs/man/git-ez.1'):
                         continue
                     else:
                         value = json.loads(raw)
@@ -67,4 +68,4 @@ with tempfile.TemporaryDirectory(prefix='git-ez-missing-source-') as temporary:
             shutil.copyfile(file, root / file.name)
     result = subprocess.run(['python3', str(verifier), str(root)], capture_output=True, text=True)
     assert result.returncode != 0, result.stdout
-print('Refused missing corresponding source; five integrity regressions passed')
+print('Refused missing corresponding source; six integrity regressions passed')

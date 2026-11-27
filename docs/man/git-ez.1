@@ -1,0 +1,73 @@
+.\" SPDX-FileCopyrightText: 2026 git-ez contributors
+.\" SPDX-License-Identifier: GPL-3.0-only
+.TH GIT-EZ 1 "" "git-ez" "Git Manual"
+.SH NAME
+git-ez \- AI-assisted native Git integration
+.SH SYNOPSIS
+.B git ez
+.RI "rebase|merge|cherry-pick target " [ options ]
+.br
+.B git ez
+.RI "rebase|merge|cherry-pick --continue " [ options ]
+.br
+.B git ez
+.RI "audit list|show " [ options ]
+.br
+.B git ez probe
+.RI [ options ]
+.SH DESCRIPTION
+Git-ez delegates integration operations to native Git. When an eligible textual
+conflict needs assistance, an agent investigates the repository and proposes
+edits. Git-ez verifies the proposal, performs configured validation and controls
+staging and native continuation.
+.PP
+Use
+.B git-ez --help
+or
+.B git-ez COMMAND --help
+for the complete option list supplied by the installed executable.
+.SH COMMON OPTIONS
+.TP
+.BI --repo " directory"
+Select the repository. Filesystem symbolic links and parent components retain
+native path semantics.
+.TP
+.B --interactive
+Review the complete proposal before accepting it. Reject with feedback to request
+a revision, or quit to restore the original tracked conflict state.
+.TP
+.BI --check " command arguments..."
+Validate with literal command arguments. Place this option last; the remaining
+arguments belong to the validation command.
+.TP
+.B --continue
+Continue an existing native operation. Assistance eligibility follows the current
+Git operation state; unrelated native failures remain manual recovery tasks.
+.SH CONFIGURATION
+Use native Git configuration under
+.BR ez.* .
+Set
+.B ez.model
+and configure the provider and endpoint as required. Supported protocols are
+OpenAI-compatible and native Ollama. Consult the distributed
+.B docs/configuration.md
+for keys, defaults, credentials and TLS configuration.
+.SH AUDIT
+.B git ez audit list
+lists saved AI interventions.
+.B git ez audit show
+inspects a saved run; use command help for verbose, artifact and session options.
+Consultation is offline and does not require provider credentials.
+Model-free operations do not create persistent LLM audit runs.
+.SH SAFETY
+Git remains responsible for operation state and recovery. Inspect the reported
+failure and native Git status before continuing or aborting an interrupted
+operation. Agent command controls do not constitute an operating-system sandbox.
+.SH REQUIREMENTS
+Git 2.46 or later on a supported Linux, FreeBSD or macOS system.
+The standalone executable does not require Python or an installed manual.
+.SH SEE ALSO
+.BR git (1),
+.BR git-merge (1),
+.BR git-rebase (1),
+.BR git-cherry-pick (1)

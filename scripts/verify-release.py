@@ -94,7 +94,7 @@ for file in sorted(archives, key=lambda f: f.name != source_name):
                     source_license_hashes[relative] = digest(tar.extractfile(name))
             continue
         required = ['git-ez', 'LICENSE', 'NOTICE', 'SOURCE.txt', 'BUILD.json',
-                    'SBOM.cdx.json', 'DEPENDENCIES.json']
+                    'SBOM.cdx.json', 'DEPENDENCIES.json', 'docs/man/git-ez.1']
         require(all(prefix + name in names for name in required), 'Incomplete archive')
         metadata = json.load(tar.extractfile(prefix + 'BUILD.json'))
         require(all(metadata[key] == value for key, value in provenance.items()),

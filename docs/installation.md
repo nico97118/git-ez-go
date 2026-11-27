@@ -41,3 +41,19 @@ from `git-ez-source/` (on one shell command line), substituting the exact record
 version. Standard distribution binaries omit linker symbols/DWARF. For interactive
 debugging, rebuild without `-s -w`; use `-gcflags=all="-N -l"` when needed. This
 debugging rebuild is intentionally different from the reproducible production binary.
+
+## Optional manual installation
+
+The archive includes `docs/man/git-ez.1`. To enable native `git ez --help`, copy
+it to a directory in your system's manual search path, for example:
+
+```sh
+mkdir -p "$HOME/.local/share/man/man1"
+cp docs/man/git-ez.1 "$HOME/.local/share/man/man1/git-ez.1"
+MANPATH="$HOME/.local/share/man:" git ez --help
+```
+
+Persist that `MANPATH` setting if the directory is not searched automatically.
+The trailing colon preserves the system search path. System-wide installation
+may instead use the platform's usual manual directory. Manual installation is
+optional: `git-ez --help` and `git-ez COMMAND --help` work with the binary alone.

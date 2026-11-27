@@ -44,6 +44,12 @@ with tempfile.TemporaryDirectory(prefix='git-ez-package-check-') as temporary:
     version = subprocess.check_output(['git', 'ez', '--version'], env=env, text=True).strip()
     assert metadata['version'] in version, version
     subprocess.run([str(binary), '--help'], env=env, check=True, stdout=subprocess.DEVNULL)
+    mandir = root / 'man' / 'man1'
+    mandir.mkdir(parents=True)
+    (mandir / 'git-ez.1').write_bytes((package / 'docs/man/git-ez.1').read_bytes())
+    env.update(MANPATH=str(mandir.parent), MANPAGER='cat', PAGER='cat', GIT_PAGER='cat')
+    manual = subprocess.check_output(['git', '-c', 'help.format=man', 'ez', '--help'], env=env, text=True)
+    assert 'AI-assisted native Git integration' in manual, manual
     # The separately supplied source is authenticated by its hash and provenance.
     with tarfile.open(assets / metadata['source_archive']) as tar:
         tar.extractall(root, filter='data')
@@ -60,7 +66,7 @@ with tempfile.TemporaryDirectory(prefix='git-ez-package-check-') as temporary:
     sha = lambda path: hashlib.sha256(path.read_bytes()).hexdigest()
     assert sha(rebuilt) == sha(binary), 'Offline rebuild differs from distributed binary'
     result = {'target': system + '/' + arch, 'version': version,
-              'native_git_discovery': True, 'offline_empty_cache_rebuild': True,
+              'native_git_discovery': True, 'native_manual_dispatch': True, 'offline_empty_cache_rebuild': True,
               'byte_identical_binary': True, 'sha256': sha(binary), 'real_model_requests': 0}
 args.evidence.parent.mkdir(parents=True, exist_ok=True)
 args.evidence.write_text(json.dumps(result, indent=2) + '\n')
