@@ -66,6 +66,7 @@ func TestRequiredJournalCapturePrecedesStaging(t *testing.T) {
 		t.Run(kind, func(t *testing.T) {
 			g, f := fixture(t)
 			q := engine.Request{Operation: "merge", Target: "main"}
+			var conflictIndex string
 			var rr resolver.Resolver = f
 			before := testutil.Must(t, g, "rev-parse", "HEAD")
 			if kind == "unsafe-parent" {
@@ -75,6 +76,7 @@ func TestRequiredJournalCapturePrecedesStaging(t *testing.T) {
 			}
 			if kind == "resolver-replacement" {
 				rr = resolverFunc(func(ctx context.Context, s resolver.Stop) (resolver.Decision, error) {
+					conflictIndex = testutil.Must(t, g, "ls-files", "--stage")
 					d, e := f.Resolve(ctx, s)
 					if er := os.Rename(s.ArtifactDirectory, s.ArtifactDirectory+"-retained"); er != nil {
 						t.Fatal(er)
@@ -101,7 +103,7 @@ func TestRequiredJournalCapturePrecedesStaging(t *testing.T) {
 				if testutil.Must(t, g, "rev-parse", "HEAD") != before {
 					t.Fatal("changed before journal safety")
 				}
-				if kind == "resolver-replacement" && testutil.Must(t, g, "ls-files", "--unmerged") == "" {
+				if kind == "resolver-replacement" && (conflictIndex == "" || testutil.Must(t, g, "ls-files", "--stage") != conflictIndex) {
 					t.Fatal("staged without evidence")
 				}
 			}

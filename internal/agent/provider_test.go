@@ -136,7 +136,7 @@ func TestProductionTelemetryPolicy(t *testing.T) {
 	}
 }
 func TestLargeOutputArtifactRetrieval(t *testing.T) {
-	steps := []step{read("file.txt"), command(`python3 -c "import sys; sys.stdout.write('x'*1400000+'LATE_EVIDENCE'+'y'*10000)"`), {name: "read_artifact", args: map[string]any{"path": "command-000002.stdout", "offset": 1400000}}, write("file.txt", "combined\n"), finish(.95)}
+	steps := []step{read("file.txt"), command(`awk 'BEGIN { for (i=0;i<1400000;i++) printf "x"; printf "LATE_EVIDENCE"; for (i=0;i<10000;i++) printf "y" }'`), {name: "read_artifact", args: map[string]any{"path": "command-000002.stdout", "offset": 1400000}}, write("file.txt", "combined\n"), finish(.95)}
 	c, g, f, close := setup(t, "openai", steps...)
 	defer close()
 	c.ToolOutputBytes = 1024

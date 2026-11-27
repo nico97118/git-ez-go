@@ -83,22 +83,24 @@ func TestSemanticConflictInvestigationRepairAndIndependentChecks(t *testing.T) {
 				c, _, _, close := setup(t, provider)
 				close()
 				g := testutil.Repo(t)
-				testutil.Write(t, g, "calc.py", "from settings import TAX, DISCOUNT\ndef total(n):\n    return n * 10\n")
-				testutil.Write(t, g, "settings.py", "TAX, DISCOUNT = 0.0, 0.0\n")
+				testutil.Write(t, g, "calc.awk", "function total(n) { return n * 10 }\n")
+				testutil.Write(t, g, "settings.awk", "BEGIN { TAX = 0; DISCOUNT = 0 }\n")
+				assertion := "BEGIN { a = total(10) - 108; b = total(1) - 12; exit (a*a > 0.000001 || b*b > 0.000001) }"
+				check := "awk -f settings.awk -f calc.awk -f check.awk"
+				testutil.Write(t, g, "check.awk", assertion+"\n")
 				testutil.Must(t, g, "add", ".")
 				testutil.Must(t, g, "commit", "-m", "base")
 				testutil.Must(t, g, "checkout", "-b", "discount")
-				testutil.Write(t, g, "calc.py", "from settings import TAX, DISCOUNT\ndef total(n):\n    return n * 10 * (1 - DISCOUNT if n >= 10 else 1)\n")
-				testutil.Write(t, g, "settings.py", "TAX, DISCOUNT = 0.0, 0.1\n")
+				testutil.Write(t, g, "calc.awk", "function total(n) { return n * 10 * (n >= 10 ? 1 - DISCOUNT : 1) }\n")
+				testutil.Write(t, g, "settings.awk", "BEGIN { TAX = 0; DISCOUNT = 0.1 }\n")
 				testutil.Must(t, g, "commit", "-am", "bulk discount")
 				testutil.Must(t, g, "checkout", "main")
 				testutil.Must(t, g, "checkout", "-b", "tax")
-				testutil.Write(t, g, "calc.py", "from settings import TAX, DISCOUNT\ndef total(n):\n    return n * 10 * (1 + TAX)\n")
-				testutil.Write(t, g, "settings.py", "TAX, DISCOUNT = 0.2, 0.0\n")
+				testutil.Write(t, g, "calc.awk", "function total(n) { return n * 10 * (1 + TAX) }\n")
+				testutil.Write(t, g, "settings.awk", "BEGIN { TAX = 0.2; DISCOUNT = 0 }\n")
 				testutil.Must(t, g, "commit", "-am", "tax")
-				assertion := "from calc import total; from math import isclose; assert isclose(total(10),108); assert isclose(total(1),12)"
-				check := "python3 -B -c '" + assertion + "'"
-				f := &modelFixture{steps: []step{read("calc.py"), read("settings.py"), command("git show :1:calc.py; git log --oneline --all"), write("calc.py", "from settings import TAX, DISCOUNT\ndef total(n):\n    return n * 10 * (1 + TAX)\n"), write("settings.py", "TAX, DISCOUNT = 0.2, 0.1\n"), command(check), write("calc.py", "from settings import TAX, DISCOUNT\ndef total(n):\n    return n * 10 * (1 - DISCOUNT if n >= 10 else 1) * (1 + TAX)\n"), command(check), write("resolution.txt", "Bulk discount applies before tax; ordinary quantities keep their full price.\n"), finish(.95)}}
+
+				f := &modelFixture{steps: []step{read("calc.awk"), read("settings.awk"), command("git show :1:calc.awk; git log --oneline --all"), write("calc.awk", "function total(n) { return n * 10 * (1 + TAX) }\n"), write("settings.awk", "BEGIN { TAX = 0.2; DISCOUNT = 0.1 }\n"), command(check), write("calc.awk", "function total(n) { return n * 10 * (n >= 10 ? 1 - DISCOUNT : 1) * (1 + TAX) }\n"), command(check), write("resolution.txt", "Bulk discount applies before tax; ordinary quantities keep their full price.\n"), finish(.95)}}
 				server := httptest.NewServer(f)
 				defer server.Close()
 				c.Endpoint = server.URL + "/v1/chat/completions"
@@ -109,7 +111,7 @@ func TestSemanticConflictInvestigationRepairAndIndependentChecks(t *testing.T) {
 				if e != nil {
 					t.Fatal(e)
 				}
-				r, e := en.Run(context.Background(), engine.Request{Operation: operation, Target: "discount", Validation: []string{"python3", "-B", "-c", assertion}})
+				r, e := en.Run(context.Background(), engine.Request{Operation: operation, Target: "discount", Validation: []string{"awk", "-f", "settings.awk", "-f", "calc.awk", "-f", "check.awk"}})
 				if e != nil || !r.Integrated || r.ResolverCalls != 1 {
 					t.Fatal(r, e)
 				}

@@ -267,8 +267,14 @@ func TestInteractiveCancellationWaitsForChildrenBeforeRestoration(t *testing.T) 
 }
 func TestInteractiveCleanupUncertaintyRetainsSnapshotWithoutRestoration(t *testing.T) {
 	g, f := fixture(t)
+	head := testutil.Must(t, g, "rev-parse", "HEAD")
+	var index string
 	en := newEngine(t, g, resolverFunc(func(ctx context.Context, stop resolver.Stop) (resolver.Decision, error) {
+		index = testutil.Must(t, g, "ls-files", "--stage")
 		d, _ := f.Resolve(ctx, stop)
+		if err := os.Chmod(g.Dir+"/file.txt", 0755); err != nil {
+			t.Fatal(err)
+		}
 		return d, failure.New(failure.Cleanup, "fixture uncertain group")
 	}))
 	en.Out = io.Discard
@@ -279,6 +285,10 @@ func TestInteractiveCleanupUncertaintyRetainsSnapshotWithoutRestoration(t *testi
 	raw, _ := os.ReadFile(filepath.Join(g.Dir, "file.txt"))
 	if string(raw) != "combined\n" {
 		t.Fatal("restored despite uncertain child cleanup")
+	}
+	info, err := os.Stat(g.Dir + "/file.txt")
+	if err != nil || info.Mode().Perm() != 0755 || index == "" || testutil.Must(t, g, "ls-files", "--stage") != index || testutil.Must(t, g, "rev-parse", "HEAD") != head {
+		t.Fatal("unsafe restoration or staging after cleanup uncertainty", err)
 	}
 	backup := strings.Split(strings.Split(e.Error(), "Backup retained at ")[1], "\n")[0]
 	t.Cleanup(func() { _ = os.RemoveAll(backup) })

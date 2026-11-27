@@ -188,7 +188,7 @@ func TestFinishErrorsAndFeedback(t *testing.T) {
 	}
 	for name, steps := range cases {
 		t.Run(name, func(t *testing.T) {
-			c, g, _, close := setup(t, "openai", steps...)
+			c, g, fixture, close := setup(t, "openai", steps...)
 			defer close()
 			r, e := runEngine(t, c, g)
 			good := strings.HasSuffix(name, "repair")
@@ -197,6 +197,19 @@ func TestFinishErrorsAndFeedback(t *testing.T) {
 			}
 			if !good && (e == nil || r.Integrated) {
 				t.Fatal(r, e)
+			}
+
+			if name == "batched-repair" {
+				fixture.mu.Lock()
+				if len(fixture.requests) != 3 {
+					fixture.mu.Unlock()
+					t.Fatal("batched finish ended the session before the required standalone finish")
+				}
+				feedback, marshalErr := json.Marshal(fixture.requests[2]["messages"])
+				fixture.mu.Unlock()
+				if marshalErr != nil || !strings.Contains(string(feedback), "finish must be called alone") {
+					t.Fatal("batched finish rejection did not reach the next model request", marshalErr, string(feedback))
+				}
 			}
 
 			events, _ := filepath.Glob(filepath.Join(r.Directory, "agent-*", "event-*.json"))
@@ -217,7 +230,14 @@ func TestFinishErrorsAndFeedback(t *testing.T) {
 					results++
 				}
 			}
-			if started != results {
+			expected := 0
+			for _, scripted := range steps {
+				if scripted.name != "" {
+					expected++
+				}
+				expected += len(scripted.batch)
+			}
+			if started != expected || started != results {
 				t.Fatal("tool rejection/result evidence missing or duplicated", started, results)
 			}
 		})
@@ -238,13 +258,51 @@ func TestHardBudgetsAndNoRetry(t *testing.T) {
 			case "302":
 				f.status = 302
 			}
+			// Match the engine's immutable target spelling in native conflict markers.
+			testutil.Must(t, g, "merge", "--abort")
+			native, nativeErr := g.Run(context.Background(), "merge", "--no-edit", testutil.Must(t, g, "rev-parse", "feature"))
+			if nativeErr != nil || native.ExitCode == 0 {
+				t.Fatal(native, nativeErr)
+			}
+			before := testutil.Must(t, g, "ls-files", "--stage")
+			contents, err := os.ReadFile(g.Dir + "/file.txt")
+			if err != nil {
+				t.Fatal(err)
+			}
 			r, e := runEngine(t, c, g)
 			if e == nil || r.Integrated {
 				t.Fatal(r, e)
 			}
+			sessions, globErr := filepath.Glob(filepath.Join(r.Directory, "agent-*", "session.json"))
+			if globErr != nil || len(sessions) != 1 {
+				t.Fatal(sessions, globErr)
+			}
+			sessionRaw, readErr := os.ReadFile(sessions[0])
+			var session map[string]any
+			if readErr != nil || json.Unmarshal(sessionRaw, &session) != nil || session["status"] != "failed" {
+				t.Fatal(string(sessionRaw), readErr)
+			}
+			expectedTools := float64(0)
+			if kind == "models" || kind == "tools" {
+				expectedTools = 1
+			}
+			if session["tool_calls"] != expectedTools {
+				t.Fatal("wrong executed tool count", session)
+			}
+			if reason := map[string]string{"models": "Actual model request limit exceeded", "tools": "Tool request budget exceeded"}[kind]; reason != "" && !strings.Contains(string(sessionRaw), reason) {
+				t.Fatal("wrong exhaustion reason", string(sessionRaw))
+			}
+			after, err := os.ReadFile(g.Dir + "/file.txt")
+			if err != nil || string(after) != string(contents) || testutil.Must(t, g, "ls-files", "--stage") != before {
+				t.Fatal("failed attempt changed tracked conflict or index", err)
+			}
 			f.mu.Lock()
 			defer f.mu.Unlock()
-			if (kind == "models" || kind == "429" || kind == "302") && len(f.requests) != 1 {
+			expectedRequests := 1
+			if kind == "tools" {
+				expectedRequests = 2
+			}
+			if len(f.requests) != expectedRequests {
 				t.Fatal("budget/retry", len(f.requests))
 			}
 		})
