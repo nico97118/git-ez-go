@@ -61,16 +61,30 @@ func TestMain(m *testing.M) {
 			if e := os.WriteFile(os.Args[3], []byte(strconv.Itoa(child.Process.Pid)), 0600); e != nil {
 				os.Exit(3)
 			}
+		case "ready":
+			fmt.Print("ready\n")
+			ready := os.NewFile(3, "ready")
+			fmt.Fprintln(ready, 0)
+			var gate [1]byte
+			_, _ = io.ReadFull(os.Stdin, gate[:])
+		case "gated-write":
+			var gate [1]byte
+			if _, err := io.ReadFull(os.Stdin, gate[:]); err == nil {
+				_ = os.WriteFile(os.Args[3], []byte("late mutation"), 0600)
+			}
 		case "descendant", "orphan":
-			child := exec.Command(os.Args[0], "__process_helper", "latewrite", os.Args[3])
+			child := exec.Command(os.Args[0], "__process_helper", "gated-write", os.Args[3])
+			child.Stdin = os.Stdin
 			if e := child.Start(); e != nil {
 				os.Exit(3)
 			}
 			fmt.Print("ready\n")
+			ready := os.NewFile(3, "ready")
+			fmt.Fprintln(ready, child.Process.Pid)
 			if os.Args[2] == "descendant" {
 				_ = child.Wait()
-				time.Sleep(time.Minute)
 			}
+
 		default:
 			os.Exit(4)
 		}
@@ -113,33 +127,93 @@ func TestExitAndStartupFailures(t *testing.T) {
 	}
 }
 func TestTimeoutRetainsOutputAndWaitsForChildren(t *testing.T) {
-	r, e := process.Run(context.Background(), process.Request{Args: helper("sleep"), Timeout: 100 * time.Millisecond})
+	const limit = 100 * time.Millisecond
+	r, e := process.Run(context.Background(), process.Request{Args: helper("sleep"), Timeout: limit})
 	var timeout *process.TimeoutError
-	if !errors.As(e, &timeout) || !r.TimedOut || !strings.Contains(string(r.Stdout), "ready") {
+	// The timeout includes startup; it may expire before the helper runs any Go.
+	if !errors.As(e, &timeout) || !r.TimedOut || timeout.Limit != limit {
 		t.Fatalf("timeout %+v %v", r, e)
 	}
-	for _, mode := range []string{"descendant", "orphan"} {
+	for _, mode := range []string{"ready", "descendant", "orphan"} {
 		t.Run(mode, func(t *testing.T) {
 			sentinel := filepath.Join(t.TempDir(), "late")
-			request := process.Request{Args: helper(mode, sentinel)}
-			if mode == "descendant" {
-				request.Timeout = 100 * time.Millisecond
+			readyRead, readyWrite, err := os.Pipe()
+			if err != nil {
+				t.Fatal(err)
 			}
-			r, e := process.Run(context.Background(), request)
-			if mode == "descendant" {
-				if !errors.As(e, &timeout) {
-					t.Fatalf("cleanup uncertainty %v; cause: %v", e, errors.Unwrap(e))
+			defer readyRead.Close()
+			defer readyWrite.Close()
+			gateRead, gateWrite, err := os.Pipe()
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer gateRead.Close()
+			defer gateWrite.Close()
+			// A watchdog bounds broken tests; cancellation under test happens
+			// only after stdout was written and any descendant was started.
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			type outcome struct {
+				result process.Result
+				err    error
+			}
+			done := make(chan outcome, 1)
+			go func() {
+				result, err := process.Run(ctx, process.Request{
+					Args: helper(mode, sentinel), Stdin: gateRead,
+					ExtraFiles: []*os.File{readyWrite},
+				})
+				done <- outcome{result, err}
+			}()
+			announced := make(chan error, 1)
+			go func() { var pid int; _, err := fmt.Fscan(readyRead, &pid); announced <- err }()
+			select {
+			case err := <-announced:
+				if err != nil {
+					cancel()
+					result := <-done
+					t.Fatalf("helper readiness: %v; result=%+v", err, result)
 				}
-			} else if e != nil || r.ExitCode != 0 {
-				t.Fatalf("result=%+v error=%v cause=%v", r, e, errors.Unwrap(e))
+			case <-ctx.Done():
+				result := <-done
+				t.Fatalf("helper did not announce readiness: %+v", result)
 			}
-			time.Sleep(350 * time.Millisecond)
-			if _, e = os.Stat(sentinel); !os.IsNotExist(e) {
-				t.Fatal("descendant mutated after return")
+
+			if mode != "orphan" {
+				cancel()
+			}
+			result := <-done
+			// Drop our copies so an open read end after Run would necessarily
+			// belong to a managed process, not the test itself.
+			if err := readyWrite.Close(); err != nil {
+				t.Fatal(err)
+			}
+			if err := gateRead.Close(); err != nil {
+				t.Fatal(err)
+			}
+			if mode != "orphan" {
+				if !errors.Is(result.err, context.Canceled) || result.result.TimedOut {
+					t.Fatalf("cancellation: %+v", result)
+				}
+			} else if result.err != nil || result.result.ExitCode != 0 {
+				t.Fatalf("orphan cleanup: %+v", result)
+			}
+			if !strings.Contains(string(result.result.Stdout), "ready") {
+				t.Fatalf("ready output was not retained: %+v", result)
+			}
+			// A surviving descendant would receive this byte and mutate the
+			// sentinel. EPIPE proves all inherited readers are already closed;
+			// no fixed post-return sleep or scheduling window is needed.
+			if _, err := gateWrite.Write([]byte{1}); !errors.Is(err, syscall.EPIPE) {
+				t.Fatalf("managed stdin reader survived Run: %v", err)
+			}
+			if _, err := os.Stat(sentinel); !os.IsNotExist(err) {
+				t.Fatal("managed process mutated after return", err)
 			}
 		})
 	}
 }
+
 func TestCancellationIncludingStartupWindow(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
