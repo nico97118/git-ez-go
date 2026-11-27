@@ -312,15 +312,20 @@ func TestRerereOverridePersistsAcrossEveryNativeRebaseStop(t *testing.T) {
 			original := testutil.Must(t, g, "rev-parse", "HEAD")
 			testutil.Must(t, g, "config", "rerere.enabled", "true")
 			native, err := g.Run(context.Background(), "rebase", "main")
+			t.Logf("start rerere training: exit=%d stdout=%s stderr=%s err=%v", native.ExitCode, native.Stdout, native.Stderr, err)
 			if err != nil || native.ExitCode == 0 {
-				t.Fatal(native, err)
+				t.Fatalf("start rerere training: exit=%d stdout=%s stderr=%s err=%v", native.ExitCode, native.Stdout, native.Stderr, err)
 			}
 			for i, text := range []string{"rr-one\n", "rr-two\n"} {
+				if conflicts := testutil.Must(t, g, "diff", "--name-only", "--diff-filter=U"); conflicts != "file.txt" {
+					t.Fatalf("rerere training stop %d: expected file.txt conflict, got %q", i+1, conflicts)
+				}
 				testutil.Write(t, g, "file.txt", text)
 				testutil.Must(t, g, "add", "file.txt")
 				native, err = g.Run(context.Background(), "rebase", "--continue")
+				t.Logf("continue rerere training stop %d: exit=%d stdout=%s stderr=%s err=%v", i+1, native.ExitCode, native.Stdout, native.Stderr, err)
 				if err != nil || (native.ExitCode == 0) != (i == 1) {
-					t.Fatal(native, err)
+					t.Fatalf("continue rerere training stop %d: exit=%d stdout=%s stderr=%s err=%v", i+1, native.ExitCode, native.Stdout, native.Stderr, err)
 				}
 			}
 			testutil.Must(t, g, "reset", "--hard", original)
