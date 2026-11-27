@@ -258,7 +258,8 @@ func Load(ctx context.Context, g git.Client) (Config, error) {
 			base = strings.TrimSpace(string(p.Stdout))
 		}
 		if !filepath.IsAbs(expanded) {
-			expanded = filepath.Join(base, expanded)
+			// Preserve symlink/.. for physical resolution before lexical cleaning.
+			expanded = base + string(os.PathSeparator) + expanded
 		}
 		resolved, err := resolvePath(expanded)
 		if err != nil {
@@ -289,12 +290,15 @@ func expandHome(ctx context.Context, g git.Client, p string) (string, error) {
 	return strings.TrimSuffix(string(r.Stdout), "\n"), nil
 }
 
-// Match Path.resolve(strict=False): resolve the existing prefix, preserving a
-// nonexistent suffix so normal configuration validation can report it safely.
+// Match Python Path.resolve(strict=False), resolving existing components before
+// simplifying parents. A missing suffix is retained for normal file validation.
 func resolvePath(p string) (string, error) {
-	p, e := filepath.Abs(p)
-	if e != nil {
-		return "", e
+	if !filepath.IsAbs(p) {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return "", err
+		}
+		p = cwd + string(os.PathSeparator) + p
 	}
 	var tail []string
 	for {
@@ -302,18 +306,29 @@ func resolvePath(p string) (string, error) {
 		if err == nil {
 			for i := len(tail) - 1; i >= 0; i-- {
 				resolved = filepath.Join(resolved, tail[i])
+				physical, e := filepath.EvalSymlinks(resolved)
+				if e == nil {
+					resolved = physical
+				} else if !os.IsNotExist(e) {
+					return "", e
+				}
 			}
-			return resolved, nil
+			return filepath.Abs(resolved)
 		}
 		if !os.IsNotExist(err) {
 			return "", err
 		}
-		parent := filepath.Dir(p)
-		if parent == p {
+		// filepath.Dir would clean symlink/.. before resolving the prefix.
+		p = strings.TrimRight(p, string(os.PathSeparator))
+		i := strings.LastIndexByte(p, os.PathSeparator)
+		if i < 0 {
 			return "", err
 		}
-		tail = append(tail, filepath.Base(p))
-		p = parent
+		tail = append(tail, p[i+1:])
+		p = p[:i]
+		if p == "" {
+			p = string(os.PathSeparator)
+		}
 	}
 }
 

@@ -181,3 +181,31 @@ func TestDispatchStatusAndPreparationBoundary(t *testing.T) {
 		t.Fatal("missing backend misrepresented")
 	}
 }
+
+func TestMessageFilePreservesPhysicalParentSemantics(t *testing.T) {
+	root := t.TempDir()
+	for _, dir := range []string{"lexical", "physical/child"} {
+		if err := os.MkdirAll(root+"/"+dir, 0700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.Symlink(root+"/physical/child", root+"/lexical/link"); err != nil {
+		t.Fatal(err)
+	}
+	for _, item := range []struct{ dir, text string }{{"lexical", "wrong"}, {"physical", "intended"}} {
+		if err := os.WriteFile(root+"/"+item.dir+"/message", []byte(item.text), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Chdir(root)
+	for _, path := range []string{"lexical/link/../message", root + "/lexical/link/../message"} {
+		r, err := Parse([]string{"merge", "main", "-F", path})
+		if err != nil {
+			t.Fatal(err)
+		}
+		r, err = r.Prepare()
+		if err != nil || r.Commit.Message == nil || *r.Commit.Message != "intended" {
+			t.Fatal(r, err)
+		}
+	}
+}

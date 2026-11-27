@@ -217,14 +217,21 @@ func executablePath(name, dir string, env []string) (string, error) {
 	}
 	var denied error
 	for _, base := range strings.Split(search, string(os.PathListSeparator)) {
-		candidate := filepath.Join(base, name)
+		// PATH entries have native filesystem semantics, including symlink/.. .
+		candidate := base + string(os.PathSeparator) + name
+		if base == "" {
+			candidate = name
+		}
 		if !filepath.IsAbs(candidate) {
-			candidate = filepath.Join(dir, candidate)
-			var e error
-			candidate, e = filepath.Abs(candidate)
-			if e != nil {
-				return "", e
+			baseDir := dir
+			if !filepath.IsAbs(baseDir) {
+				cwd, err := os.Getwd()
+				if err != nil {
+					return "", err
+				}
+				baseDir = cwd + string(os.PathSeparator) + baseDir
 			}
+			candidate = baseDir + string(os.PathSeparator) + candidate
 		}
 		path, e := exec.LookPath(candidate)
 		if e == nil {

@@ -216,3 +216,28 @@ func TestInheritedOutputPipeTimeoutIsCleanupUncertainty(t *testing.T) {
 		t.Fatal("inherited pipe uncertainty misclassified", err)
 	}
 }
+
+func TestPATHSymlinkParentUsesPhysicalExecutable(t *testing.T) {
+	root := t.TempDir()
+	physical := filepath.Join(root, "physical")
+	lexical := filepath.Join(root, "lexical")
+	for _, p := range []string{physical + "/child", lexical} {
+		if err := os.MkdirAll(p, 0700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.Symlink(physical+"/child", lexical+"/link"); err != nil {
+		t.Fatal(err)
+	}
+	for _, item := range []struct{ dir, text string }{{physical, "intended"}, {lexical, "wrong"}} {
+		if err := os.WriteFile(item.dir+"/probe", []byte("#!/bin/sh\nprintf "+item.text), 0700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, path := range []string{lexical + "/link/..", "lexical/link/.."} {
+		r, err := process.Run(context.Background(), process.Request{Args: []string{"probe"}, Dir: root, Env: []string{"PATH=" + path}})
+		if err != nil || r.ExitCode != 0 || string(r.Stdout) != "intended" {
+			t.Fatal(r, err)
+		}
+	}
+}

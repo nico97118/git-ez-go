@@ -23,3 +23,5 @@ trap 'rm -f "$binary"; rm -rf "$evidence"' EXIT HUP INT TERM
 python3 scripts/check-interactive.py --binary "$binary" --evidence "$evidence/interactive.json"
 python3 scripts/check-audit.py --binary "$binary" --evidence "$evidence/audit.json"
 python3 scripts/check-signal.py --binary "$binary" --evidence "$evidence/signal.json"
+
+python3 scripts/check-paths.py --binary "$binary" --evidence "$evidence/paths.json"

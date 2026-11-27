@@ -25,11 +25,15 @@ type Client struct {
 }
 
 func New(directory string) (Client, error) {
-	p, e := filepath.Abs(directory)
+	if directory == "" {
+		directory = "."
+	}
+	// Resolve before Abs: lexical cleaning would erase symlink/.. semantics.
+	p, e := filepath.EvalSymlinks(directory)
 	if e != nil {
 		return Client{}, e
 	}
-	p, e = filepath.EvalSymlinks(p)
+	p, e = filepath.Abs(p)
 	if e != nil {
 		return Client{}, e
 	}

@@ -317,3 +317,26 @@ func TestRemovedContextByteSettingDoesNotRestrictResolution(t *testing.T) {
 		t.Fatal(string(raw), err)
 	}
 }
+
+func TestCABundleMissingComponentParentPreservesReferenceResolution(t *testing.T) {
+	g := testutil.Repo(t)
+	physical := t.TempDir()
+	if err := os.Mkdir(physical+"/child", 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(physical+"/child", g.Dir+"/link"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(physical+"/ca.pem", []byte("configured file"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	testutil.Must(t, g, "config", "ez.model", "fixture")
+	for _, path := range []string{"link/../missing/../ca.pem", "missing/../link/../ca.pem"} {
+		testutil.Must(t, g, "config", "ez.caBundle", path)
+		c, err := Load(context.Background(), g)
+		want, _ := filepath.EvalSymlinks(physical + "/ca.pem")
+		if err != nil || c.CABundle == nil || *c.CABundle != want {
+			t.Fatal(c.CABundle, err, want)
+		}
+	}
+}
