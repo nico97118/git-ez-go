@@ -3,13 +3,22 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Build all production packages/CLI without CGO and retain exact linked modules."""
 import argparse, hashlib, json, os, pathlib, platform, subprocess
-p=argparse.ArgumentParser(); p.add_argument('--go',default='go'); p.add_argument('--output',required=True); p.add_argument('--evidence',required=True); p.add_argument('--version',default='0.1.0-dev'); a=p.parse_args()
+p = argparse.ArgumentParser()
+p.add_argument('--go', default='go')
+p.add_argument('--output', required=True)
+p.add_argument('--evidence', required=True)
+p.add_argument('--version', default='0.1.0-dev')
+p.add_argument('--target', choices=[f'{system}/{arch}' for system in ('linux', 'freebsd', 'darwin') for arch in ('amd64', 'arm64')],
+               help='Build one target; default builds all six')
+a = p.parse_args()
 out=pathlib.Path(a.output).resolve(); out.mkdir(parents=True,exist_ok=True)
 env=dict(os.environ,CGO_ENABLED='0',GOTOOLCHAIN='local',GOAMD64='v1',GOARM64='v8.0',GOEXPERIMENT='',GOFLAGS='')
 def run(args, **kw): return subprocess.check_output(args,env=env,text=True,**kw).strip()
 records=[]
 for system in ('linux','freebsd','darwin'):
  for arch in ('amd64','arm64'):
+  if a.target and a.target != f'{system}/{arch}':
+   continue
   env.update(GOOS=system,GOARCH=arch)
   subprocess.run([a.go,'build','-buildvcs=false','./...'],env=env,check=True)
   binary=out/f'git-ez-{system}-{arch}'

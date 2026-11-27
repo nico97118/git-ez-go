@@ -3,6 +3,12 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      revision:
+        description: Exact source commit when called by release engineering
+        type: string
+        default: ''
 permissions:
   contents: read
 concurrency:
@@ -12,6 +18,51 @@ env:
   GOTOOLCHAIN: local
   GOTELEMETRY: 'off'
 jobs:
+  quality:
+    name: Code quality and workflow syntax
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+          ref: ${{ inputs.revision || github.ref }}
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: .go-version
+          cache: true
+      - name: Verify Go formatting
+        run: test -z "$(gofmt -l cmd internal scripts)"
+      - name: Verify module tidy state
+        run: go mod tidy -diff
+      - name: Install pinned actionlint
+        run: go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+      - name: Validate GitHub Actions workflows
+        run: actionlint
+      - name: Verify shell and Python syntax
+        run: |
+          sh -n scripts/ci.sh
+          sh -n install.sh
+          python3 -m compileall -q scripts
+  dependencies:
+    name: Dependency integrity and vulnerabilities
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+          ref: ${{ inputs.revision || github.ref }}
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: .go-version
+          cache: true
+      - name: Verify downloaded modules
+        run: go mod verify
+      - name: Install pinned govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@v1.10.0
+      - name: Check dependency vulnerabilities
+        run: govulncheck ./...
   native:
     name: Native (${{ matrix.os }})
     strategy:
@@ -25,11 +76,53 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
+          ref: ${{ inputs.revision || github.ref }}
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version-file: .go-version
           cache: true
-      - run: sh scripts/ci.sh
+      - name: Verify native Git minimum and record toolchain
+        run: |
+          python3 -c 'import re, subprocess; v=subprocess.check_output(["git", "--version"], text=True); print(v); assert tuple(map(int, re.search(r"(\d+)\.(\d+)", v).groups())) >= (2, 46), "Git 2.46 or newer required"'
+          go version
+      - name: Vet native packages
+        run: go vet ./...
+      - name: Run complete native Go suite (including installer fixtures)
+        run: CGO_ENABLED=0 go test -v -timeout 15m ./...
+      - name: Run complete native race suite
+        if: ${{ !cancelled() }}
+        run: CGO_ENABLED=1 go test -race -v -timeout 20m ./...
+      - name: Build native installer qualification executable
+        if: ${{ !cancelled() }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/cli-evidence"
+          CGO_ENABLED=0 go build -trimpath -ldflags "-X main.version=v0.0.0-installer-test" -o "$RUNNER_TEMP/git-ez" ./cmd/git-ez
+      - name: Qualify installed interactive CLI
+        if: ${{ !cancelled() }}
+        run: python3 scripts/check-interactive.py --binary "$RUNNER_TEMP/git-ez" --evidence "$RUNNER_TEMP/cli-evidence/interactive.json"
+      - name: Qualify installed CLI audit
+        if: ${{ !cancelled() }}
+        run: python3 scripts/check-audit.py --binary "$RUNNER_TEMP/git-ez" --evidence "$RUNNER_TEMP/cli-evidence/audit.json"
+      - name: Qualify signals and process cleanup
+        if: ${{ !cancelled() }}
+        run: python3 scripts/check-signal.py --binary "$RUNNER_TEMP/git-ez" --evidence "$RUNNER_TEMP/cli-evidence/signal.json"
+      - name: Qualify repository path selection
+        if: ${{ !cancelled() }}
+        run: python3 scripts/check-paths.py --binary "$RUNNER_TEMP/git-ez" --evidence "$RUNNER_TEMP/cli-evidence/paths.json"
+      - name: Qualify native binary installation and manual
+        if: ${{ !cancelled() }}
+        env:
+          GIT_EZ_INSTALL_TEST_BINARY: ${{ runner.temp }}/git-ez
+          CGO_ENABLED: '0'
+        run: go test -v -run '^TestInstallerNativeBinary$' ./scripts
+      - name: Retain failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: cli-diagnostics-${{ matrix.os }}
+          path: ${{ runner.temp }}/cli-evidence/
+          if-no-files-found: ignore
+          retention-days: 7
   freebsd:
     name: Native (FreeBSD amd64 VM)
     runs-on: ubuntu-24.04
@@ -38,7 +131,9 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
-      - uses: vmactions/freebsd-vm@811efaaac0668df8bfb8308c3ec997b5ab50037b # v1.5.9
+          ref: ${{ inputs.revision || github.ref }}
+      - name: Qualify native suites as unprivileged user (grouped VM logs)
+        uses: vmactions/freebsd-vm@811efaaac0668df8bfb8308c3ec997b5ab50037b # v1.5.9
         with:
           release: '15.1'
           mem: 6144
@@ -49,23 +144,35 @@ jobs:
             pw useradd qualifier -m
             chmod -R a+rX .
           run: |
-            su -m qualifier -c 'env HOME=/home/qualifier GOPATH=/home/qualifier/go GOCACHE=/home/qualifier/cache GOTOOLCHAIN=local GOTELEMETRY=off sh scripts/ci.sh'
-  checks:
-    name: Workflows, dependencies and six-target builds
+            su -m qualifier -c 'env HOME=/home/qualifier GOPATH=/home/qualifier/go GOCACHE=/home/qualifier/cache GOTOOLCHAIN=local GOTELEMETRY=off sh scripts/ci.sh --native'
+  builds:
+    name: Six production compilation targets (CGO disabled)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
+          ref: ${{ inputs.revision || github.ref }}
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version-file: .go-version
           cache: true
-      - name: Install pinned development tools
-        run: |
-          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
-          go install golang.org/x/vuln/cmd/govulncheck@v1.10.0
-      - run: actionlint
-      - run: govulncheck ./...
-      - run: python3 scripts/build.py --output "$RUNNER_TEMP/builds" --evidence "$RUNNER_TEMP/builds.json"
+      - name: Compile production Linux amd64
+        if: ${{ !cancelled() }}
+        run: python3 scripts/build.py --target linux/amd64 --output "$RUNNER_TEMP/builds" --evidence "$RUNNER_TEMP/linux-amd64.json"
+      - name: Compile production Linux arm64
+        if: ${{ !cancelled() }}
+        run: python3 scripts/build.py --target linux/arm64 --output "$RUNNER_TEMP/builds" --evidence "$RUNNER_TEMP/linux-arm64.json"
+      - name: Compile production FreeBSD amd64
+        if: ${{ !cancelled() }}
+        run: python3 scripts/build.py --target freebsd/amd64 --output "$RUNNER_TEMP/builds" --evidence "$RUNNER_TEMP/freebsd-amd64.json"
+      - name: Compile production FreeBSD arm64
+        if: ${{ !cancelled() }}
+        run: python3 scripts/build.py --target freebsd/arm64 --output "$RUNNER_TEMP/builds" --evidence "$RUNNER_TEMP/freebsd-arm64.json"
+      - name: Compile production macOS amd64
+        if: ${{ !cancelled() }}
+        run: python3 scripts/build.py --target darwin/amd64 --output "$RUNNER_TEMP/builds" --evidence "$RUNNER_TEMP/darwin-amd64.json"
+      - name: Compile production macOS arm64
+        if: ${{ !cancelled() }}
+        run: python3 scripts/build.py --target darwin/arm64 --output "$RUNNER_TEMP/builds" --evidence "$RUNNER_TEMP/darwin-arm64.json"

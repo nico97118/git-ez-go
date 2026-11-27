@@ -57,9 +57,12 @@ is substituted for the complete archive. See [GPL section 6](https://www.gnu.org
 
 `ci.yml` runs deterministic formatting, vet, module verification/tidy, unit and
 integration tests, scripted native-provider fixtures, race detection where supported,
-and installed CLI review/audit/signal tests. Linux amd64/arm64 and macOS amd64/arm64
-use native hosted runners. A separate job cross-compiles all six targets and runs
-pinned actionlint and govulncheck. Dependency caching is an acceleration only;
+and installed CLI review/audit/signal/path tests. Complete normal/race suites run
+on each configured native platform, with Go's package-level parallelism.
+Linux amd64/arm64 and macOS amd64/arm64 use native hosted runners. Separate quality
+and dependency jobs run pinned actionlint and govulncheck;
+a build job exposes all six targets as named steps. See the
+[CI organization](ci.md). Dependency caching is an acceleration only;
 `go.sum` verification remains required. Real-model inference is never a CI step.
 
 FreeBSD options considered: Cirrus CI introduces another hosted service/account;
@@ -86,7 +89,10 @@ or publication secrets are passed to builds. No `pull_request_target` or privile
 results are dated observations of the Go database, not a guarantee of absence.
 
 `release.yml` supports manual packaging of a selected revision without publication.
-Tag pushes prepare artifacts in a read-only job. Publication requires all of:
+Tag pushes prepare artifacts in a read-only job. After packaging, the same CI
+workflow runs complete native qualification on the exact packaged commit; publication
+depends on both jobs succeeding. Manual release preparation also includes this
+complete native qualification. Publication requires all of:
 `RELEASE_PUBLICATION_ENABLED=true`, a `v*` tag event, and approval of the protected
 `release` environment. Only that separate job has `contents: write`. It checks out
 the trusted default branch, verifies every artifact checksum, binary hash and the separate
@@ -104,7 +110,8 @@ reviewed. Workflow YAML alone cannot enforce environment reviewers. Keep default
 workflow token permissions read-only, disable Actions creating/approving PRs, enable
 private vulnerability reporting if desired, and protect `main` with review and
 required status checks: all four `Native (...)` jobs, `Native (FreeBSD amd64 VM)`,
-and `Workflows, dependencies and six-target builds`. Require review of workflow
+plus `Code quality and workflow syntax`, `Dependency integrity and vulnerabilities`,
+and `Six production compilation targets (CGO disabled)`. Require review of workflow
 changes. Do not enable publication before these settings exist. No settings were
 changed remotely. See GitHub's [secure-use guidance](https://github.com/github/docs/blob/main/content/actions/reference/security/secure-use.md)
 and [workflow syntax](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax).

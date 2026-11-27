@@ -36,8 +36,10 @@ jobs:
           SOURCE_COMMIT: ${{ steps.source.outputs.commit }}
         run: |
           python3 scripts/release.py --revision "$SOURCE_COMMIT" --output dist
-          python3 scripts/verify-release.py dist
-          python3 scripts/test-release.py dist
+      - name: Verify release assets and corresponding source
+        run: python3 scripts/verify-release.py dist
+      - name: Test release integrity rejection cases
+        run: python3 scripts/test-release.py dist
       - name: Verify native offline installation and source rebuild
         run: python3 scripts/check-package.py dist --evidence "$RUNNER_TEMP/package-check.json"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
@@ -46,9 +48,15 @@ jobs:
           path: dist/*
           if-no-files-found: error
           retention-days: 7
+  qualification:
+    name: Complete native release qualification
+    needs: build
+    uses: ./.github/workflows/ci.yml
+    with:
+      revision: ${{ needs.build.outputs.commit }}
   publish:
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && vars.RELEASE_PUBLICATION_ENABLED == 'true'
-    needs: build
+    needs: [build, qualification]
     runs-on: ubuntu-24.04
     environment: release
     permissions:

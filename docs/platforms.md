@@ -53,10 +53,12 @@ Workflow definitions are not evidence that a hosted runner has actually passed.
 
 Keep CI small; update explicit version labels during routine toolchain reviews.
 The existing native CI runs Linux amd64/arm64, macOS latest arm64 and macOS 26 Intel;
-FreeBSD's amd64 VM uses **15.1-RELEASE**. Normal and race tests include deterministic
-installer fixtures; each native CI job also installs a freshly built real binary
-through the fixture-backed installer. No public Release availability is required.
-FreeBSD arm64 has no native race detector; ordinary tests still apply.
+FreeBSD's amd64 VM uses **15.1-RELEASE**. Complete normal and race suites run on
+every configured native environment, including deterministic installer fixtures.
+Each native CI job also installs a freshly built real binary through the
+fixture-backed installer. No public Release availability is required.
+FreeBSD arm64 has no native race detector; ordinary tests still apply. See the
+[CI organization](ci.md).
 
 Proposed release qualification, without adding per-version binaries:
 

@@ -8,10 +8,11 @@ build/packaging and optional installed-CLI checks. No provider account is needed
 ```sh
 go mod download
 go mod verify
+go mod tidy -diff
 test -z "$(gofmt -l cmd internal scripts)"
 go vet ./...
 CGO_ENABLED=0 go test -timeout 15m ./...
-go test -race -timeout 15m ./...
+CGO_ENABLED=1 go test -race -timeout 20m ./...
 python3 scripts/build.py --output /tmp/git-ez-builds --evidence /tmp/git-ez-builds.json
 ```
 
@@ -36,6 +37,7 @@ Installed CLI checks accept explicit binary/evidence paths:
 python3 scripts/check-interactive.py --binary /tmp/git-ez-builds/git-ez-linux-amd64 --evidence /tmp/interactive.json
 python3 scripts/check-audit.py --binary /tmp/git-ez-builds/git-ez-linux-amd64 --evidence /tmp/audit.json
 python3 scripts/check-signal.py --binary /tmp/git-ez-builds/git-ez-linux-amd64 --evidence /tmp/signals.json
+python3 scripts/check-paths.py --binary /tmp/git-ez-builds/git-ez-linux-amd64 --evidence /tmp/paths.json
 ```
 
 Use the binary matching the actual host. These are deterministic local fixtures.
@@ -57,3 +59,28 @@ qualification is explicitly enabled by `GIT_EZ_INSTALL_TEST_BINARY` pointing to 
 matching binary built with `-ldflags "-X main.version=v0.0.0-installer-test"`.
 That check additionally requires `man` and the platform manual formatter. Existing
 native CI runs it after building its smoke-test executable.
+
+## CI and local checks
+
+`sh scripts/ci.sh` runs complete local qualification: static checks, native vet,
+one complete normal Go suite, one complete supported race suite, and installed
+CLI/native installer checks. `sh scripts/ci.sh --native` skips repository-wide
+static checks for the FreeBSD VM. Normal hosted runners execute the checks directly
+as named Actions steps. Go retains package-level parallelism and automatic discovery;
+there is no test inventory or qualification profile to update for new tests/packages.
+
+Use normal Go commands for focused debugging, for example:
+
+```sh
+CGO_ENABLED=0 go test -v ./internal/agent ./internal/resolver
+CGO_ENABLED=0 go test -v ./internal/git ./internal/engine ./internal/conflictstate
+```
+
+Before committing, run formatting, module verify/tidy, native vet and complete
+normal/race tests as above. Run the shared build utility for platform/process/build
+changes. Workflow changes also require pinned actionlint and shell/Python syntax
+checks. The local convenience script does not run actionlint, govulncheck or
+cross-builds; CI runs them separately. No tracked development hooks are installed.
+See [CI organization](docs/ci.md) for job/platform coverage and diagnostics, and
+[release engineering](docs/release-engineering.md) for packaging and the complete
+native qualification gate on the exact packaged commit before publication.
