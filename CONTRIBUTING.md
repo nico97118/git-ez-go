@@ -8,7 +8,7 @@ build/packaging and optional installed-CLI checks. No provider account is needed
 ```sh
 go mod download
 go mod verify
-test -z "$(gofmt -l cmd internal)"
+test -z "$(gofmt -l cmd internal scripts)"
 go vet ./...
 CGO_ENABLED=0 go test -timeout 15m ./...
 go test -race -timeout 15m ./...
@@ -49,3 +49,11 @@ Prepare changes with their behavior, rationale, regression results and limitatio
 Never include credentials, private repositories/model traces, local environment
 paths or generated binaries. [Architecture](docs/architecture.md),
 [release engineering](docs/release-engineering.md), [security](SECURITY.md).
+
+Installer regression tests run with `go test ./scripts` (also included in `./...`).
+They use local release fixtures and real shell/archive/checksum tools, with mocked
+GitHub transport; no network or published releases are required. Native installer
+qualification is explicitly enabled by `GIT_EZ_INSTALL_TEST_BINARY` pointing to a
+matching binary built with `-ldflags "-X main.version=v0.0.0-installer-test"`.
+That check additionally requires `man` and the platform manual formatter. Existing
+native CI runs it after building its smoke-test executable.

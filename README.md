@@ -12,30 +12,31 @@ requirement; complete Python parity and unconditional production readiness are n
 
 ## Install
 
-Runtime requirements: **Git 2.46 or newer**, a supported operating system and access
-to your configured model endpoint. Python, Go, Node.js and Genkit are not required
-on the end user's machine. No official release has been published yet.
+**Experimental:** semantic resolution quality and full production readiness remain
+open acceptance requirements. No official release has been published yet; the
+installer will report that no suitable release exists until one is available.
 
-When authorized release archives are available, obtain the archive for your OS and
-architecture and its `SHA256SUMS` through a trusted channel. Verify before extracting:
+Requires **Git 2.46+** and a [compatible platform](docs/platforms.md).
+Recommended installation (executable and manual under `~/.local`):
 
 ```sh
-sha256sum git-ez_VERSION_linux_amd64.tar.gz
-# Compare the digest with its entry in the trusted SHA256SUMS.
-# macOS: shasum -a 256 ARCHIVE; FreeBSD: sha256 ARCHIVE
-mkdir unpacked
-tar -xzf git-ez_VERSION_linux_amd64.tar.gz -C unpacked
-mkdir -p "$HOME/.local/bin"
-install -m 755 unpacked/git-ez_VERSION_linux_amd64/git-ez "$HOME/.local/bin/git-ez"
-export PATH="$HOME/.local/bin:$PATH"
+curl -fsSL https://raw.githubusercontent.com/nico97118/git-ez-go/main/install.sh | sh
+```
+
+If necessary, add `~/.local/bin` to your PATH, then verify:
+
+```sh
 git ez --version
 ```
 
-Replace `VERSION` and the target with the downloaded archive's actual names.
-For FreeBSD's base tools use `sha256 ARCHIVE` and compare its digest with the
-trusted checksum file. Checksums detect changes; obtain both binaries and checksums
-from an authenticated source. Binary archives include licenses and a `SOURCE.txt` reference to the matching
-complete source archive, available separately in the same release. [Offline installation, upgrades and removal](docs/installation.md).
+The installer selects the latest published stable release, or warns before using
+a pre-release if no stable release exists. It never changes shell or Git settings.
+Python, Go, Node.js and a separate agent-framework runtime are not required.
+
+**Manual/offline alternative:** download the matching OS/architecture archive and
+`SHA256SUMS` from [GitHub Releases](https://github.com/nico97118/git-ez-go/releases).
+See [installation, verification, upgrades and removal](docs/installation.md),
+including how to inspect the installer before running it.
 
 ## Quick start
 
