@@ -190,7 +190,7 @@ func TestModelFreeValidationFailureKeepsDiagnosticsWithoutPersistentAudit(t *tes
 	if code != 1 || !strings.Contains(out.String(), "Git integration completed: true") || !strings.Contains(diag.String(), "native-check-diagnostic") || !strings.Contains(diag.String(), "<redacted>") || strings.Contains(diag.String(), "diagnostic-secret") {
 		t.Fatal(code, out.String(), diag.String())
 	}
-	if _, err := os.Stat(filepath.Join(g.Dir, ".git/ez/runs")); !os.IsNotExist(err) {
+	if entries, err := os.ReadDir(filepath.Join(g.Dir, ".git/ez/runs")); err != nil || len(entries) != 0 {
 		t.Fatal("native validation created persistent LLM audit", err)
 	}
 }

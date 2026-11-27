@@ -484,8 +484,8 @@ func TestModelFreeOperationsDoNotCreatePersistentAudit(t *testing.T) {
 			if r.Directory != "" || r.ResolverCalls != 0 {
 				t.Fatal("model-free run created audit", r)
 			}
-			if _, e = os.Stat(filepath.Join(g.Dir, ".git", "ez", "runs")); !os.IsNotExist(e) {
-				t.Fatal("persistent audit directory created", e)
+			if entries, err := os.ReadDir(filepath.Join(g.Dir, ".git", "ez", "runs")); err != nil || len(entries) != 0 {
+				t.Fatal("persistent audit run created", entries, err)
 			}
 		})
 	}

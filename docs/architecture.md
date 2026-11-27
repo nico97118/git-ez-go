@@ -29,7 +29,7 @@ and the corresponding protocol/freshness regressions pass without it. Do not for
 a second generic harness or tune prompts to compensate for one weak model.
 
 `internal/process` manages child processes; uncertain cleanup prevents restoration.
-`internal/journal` separates transient engine safety checkpoints from private,
+`internal/journal` separates transient engine safety checkpoints from
 atomic schema-4 LLM evidence. Native engine command streams are not audit events;
 Git commands initiated by the LLM are. Proposed, accepted, staged and integrated
 are distinct states. Failed and interrupted attempts remain inspectable. Mandatory

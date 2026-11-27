@@ -55,3 +55,21 @@ Qualification requires a separately authorized probe and independently validated
 real conflict for each intended model/upstream combination. Models requiring opaque
 `reasoning_details` replay remain unqualified with Genkit v1.14.0. No live model was
 invoked for this integration assessment.
+
+## Audit storage admission
+
+Before native integration or continuation mutates Git state, the engine prepares
+`ez/runs` in the common Git directory and probes directory creation, file writing,
+synchronization and atomic publication. The probe is removed; model-free runs
+still leave no persistent run audit. An unusable audit destination stops admission.
+Existing audit directories may have group/other permissions or a different owner;
+actual filesystem access determines whether they are usable. No existing modes or
+ownership are changed. New directories use 0700 and new artifact files use 0600
+(subject to the process umask). Directory symlinks and observed directory identity
+changes remain rejected. The internal safety workspace remains private and temporary.
+Admission cannot guarantee later writes against permission changes or storage
+failures, and shared audits carry no authenticity guarantee against other writers.
+
+Regression coverage includes existing 0755 parents, writable shared run directories,
+restrictive new artifacts, rejection of unsafe/unwritable storage, unchanged Git
+HEAD/index/worktree on admission failure, and ancestor replacement during a run.

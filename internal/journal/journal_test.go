@@ -111,8 +111,8 @@ func TestScratchPromotionSeparatesSafetyAndPersistentEvidence(t *testing.T) {
 	if e = j.JSON("rebase-todo.txt.capture.json", map[string]any{"digest": "internal"}); e != nil {
 		t.Fatal(e)
 	}
-	if _, e = os.Stat(filepath.Join(common, "ez", "runs")); !os.IsNotExist(e) {
-		t.Fatal("scratch created persistent run", e)
+	if entries, err := os.ReadDir(filepath.Join(common, "ez", "runs")); err != nil || len(entries) != 0 {
+		t.Fatal("scratch created persistent run", entries, err)
 	}
 	if e = j.Promote(); e != nil {
 		t.Fatal(e)
@@ -164,5 +164,75 @@ func TestScratchCleanupRefusesReplacedDirectory(t *testing.T) {
 	}
 	if _, e = os.Stat(sentinel); e != nil {
 		t.Fatal("unrelated data removed", e)
+	}
+}
+
+func TestExistingSharedJournalAndReplacement(t *testing.T) {
+	common := t.TempDir()
+	for _, path := range []string{filepath.Join(common, "ez"), filepath.Join(common, "ez", "runs")} {
+		if err := os.Mkdir(path, 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chmod(path, 0755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	j, err := journal.Scratch(common, map[string]any{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer j.Close()
+	if err = j.Promote(); err != nil {
+		t.Fatal(err)
+	}
+	if info, err := os.Stat(j.Directory); err != nil || info.Mode().Perm()&0077 != 0 {
+		t.Fatal(info, err)
+	}
+	if err = os.Chmod(j.Directory, 0777); err != nil {
+		t.Fatal(err)
+	}
+	if err = j.Write("shared", []byte("evidence")); err != nil {
+		t.Fatal(err)
+	}
+	runs := filepath.Join(common, "ez", "runs")
+	if err = os.Rename(runs, runs+"-old"); err != nil {
+		t.Fatal(err)
+	}
+	if err = os.Mkdir(runs, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err = j.Write("refused", nil); err == nil {
+		t.Fatal("accepted replaced ancestor")
+	}
+}
+
+func TestScratchRefusesUnsafeAuditStorage(t *testing.T) {
+	for _, kind := range []string{"symlink", "file", "unwritable"} {
+		t.Run(kind, func(t *testing.T) {
+			common := t.TempDir()
+			path := filepath.Join(common, "ez")
+			switch kind {
+			case "symlink":
+				if err := os.Symlink(t.TempDir(), path); err != nil {
+					t.Fatal(err)
+				}
+			case "file":
+				if err := os.WriteFile(path, nil, 0600); err != nil {
+					t.Fatal(err)
+				}
+			case "unwritable":
+				if os.Geteuid() == 0 {
+					t.Skip("root bypasses directory write permissions")
+				}
+				if err := os.Mkdir(path, 0500); err != nil {
+					t.Fatal(err)
+				}
+				defer os.Chmod(path, 0700)
+			}
+			if j, err := journal.Scratch(common, map[string]any{}); err == nil {
+				j.Close()
+				t.Fatal("unsafe storage admitted")
+			}
+		})
 	}
 }

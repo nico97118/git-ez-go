@@ -5,6 +5,7 @@ package engine
 import (
 	"github.com/nico97118/git-ez-go/internal/config"
 	"github.com/nico97118/git-ez-go/internal/failure"
+	"github.com/nico97118/git-ez-go/internal/journal"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -124,6 +125,13 @@ func (s *session) continueNative() (Result, error) {
 			marker = "CHERRY_PICK_HEAD"
 		}
 		base, _ = g.CommitOID(s.ctx, marker)
+	}
+	common, e := g.CommonDir(s.ctx)
+	if e != nil {
+		return s.result, e
+	}
+	if e = journal.Preflight(common); e != nil {
+		return s.result, e
 	}
 	r, e := g.Foreground(s.ctx, s.engine.In, s.engine.Out, s.engine.Err, q.Operation, "--continue")
 	if e != nil {

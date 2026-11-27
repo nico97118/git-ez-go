@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: 2026 git-ez contributors
 // SPDX-License-Identifier: GPL-3.0-only
 
-// Package journal publishes private atomic intervention evidence and keeps
+// Package journal publishes atomic intervention evidence and keeps
 // transient engine safety state separate from persistent LLM audit records.
 package journal
 
@@ -34,6 +34,20 @@ type Journal struct {
 	safety            *os.Root
 	llm               bool
 	scratch           bool
+	directories       []directoryIdentity
+}
+
+type directoryIdentity struct {
+	path string
+	info os.FileInfo
+}
+
+func (d directoryIdentity) check() error {
+	actual, err := os.Lstat(d.path)
+	if err != nil || !actual.IsDir() || !os.SameFile(actual, d.info) {
+		return failure.New(failure.Audit, "Journal directory was replaced: "+d.path)
+	}
+	return nil
 }
 
 func ID() string {
@@ -50,7 +64,7 @@ func private(info os.FileInfo) bool {
 func New(common string, view map[string]any, secrets ...string) (*Journal, error) {
 	return newRun(common, view, false, secrets...)
 }
-func newRun(common string, view map[string]any, llm bool, secrets ...string) (*Journal, error) {
+func openRunDirectory(common string) (*Journal, error) {
 	root, e := os.OpenRoot(common)
 	if e != nil {
 		return nil, e
@@ -58,6 +72,7 @@ func newRun(common string, view map[string]any, llm bool, secrets ...string) (*J
 	defer root.Close()
 	parent := root
 	var opened []*os.Root
+	var identities []directoryIdentity
 	defer func() {
 		for _, r := range opened {
 			_ = r.Close()
@@ -66,33 +81,48 @@ func newRun(common string, view map[string]any, llm bool, secrets ...string) (*J
 	directory := common
 	for depth, name := range []string{"ez", "runs", ID()} {
 		if e = parent.Mkdir(name, 0700); e != nil && (depth == 2 || !os.IsExist(e)) {
-			return nil, failure.Wrap(failure.Audit, "Cannot create private journal directory", e)
+			return nil, failure.Wrap(failure.Audit, "Cannot create journal directory: "+filepath.Join(directory, name), e)
 		}
 		info, err := parent.Lstat(name)
-		if err != nil || !private(info) {
-			return nil, failure.New(failure.Audit, "Journal directories must be private, owned directories")
+		if err != nil || !info.IsDir() {
+			return nil, failure.New(failure.Audit, "Journal path must be a real directory: "+filepath.Join(directory, name))
 		}
 		next, err := parent.OpenRoot(name)
 		if err != nil {
 			return nil, err
 		}
+		heldInfo, statErr := next.Stat(".")
+		if statErr != nil || !os.SameFile(info, heldInfo) {
+			next.Close()
+			return nil, failure.New(failure.Audit, "Journal directory was replaced while opening")
+		}
 		opened = append(opened, next)
 		parent = next
 		directory = filepath.Join(directory, name)
+		identities = append(identities, directoryIdentity{directory, info})
 	}
 	// Keep an independent directory handle through resolver execution/finalization.
 	held, e := parent.OpenRoot(".")
 	if e != nil {
 		return nil, e
 	}
-	j := &Journal{Directory: directory, root: held, View: view, secrets: append([]string{}, secrets...), llm: llm}
-	view["id"] = filepath.Base(directory)
+	return &Journal{Directory: directory, root: held, directories: identities}, nil
+}
+
+func newRun(common string, view map[string]any, llm bool, secrets ...string) (*Journal, error) {
+	j, e := openRunDirectory(common)
+	if e != nil {
+		return nil, e
+	}
+	j.View, j.secrets, j.llm = view, append([]string{}, secrets...), llm
+
+	view["id"] = filepath.Base(j.Directory)
 	view["schema_version"] = 4
 	view["created_at"] = time.Now().UTC().Format(time.RFC3339Nano)
 	view["status"] = "running"
 	view["integrated"] = false
 	if e = j.Save(); e != nil {
-		_ = held.Close()
+		_ = j.root.Close()
 		return nil, e
 	}
 	return j, nil
@@ -130,6 +160,11 @@ func (j *Journal) Redact(b []byte) []byte {
 	return b
 }
 func (j *Journal) Check() error {
+	for _, d := range j.directories {
+		if err := d.check(); err != nil {
+			return err
+		}
+	}
 	if j.safety != nil {
 		info, e := os.Lstat(j.workspace)
 		held, he := j.safety.Stat(".")
@@ -142,7 +177,7 @@ func (j *Journal) Check() error {
 		return failure.Wrap(failure.Audit, "Journal directory was replaced", e)
 	}
 	held, e := j.root.Stat(".")
-	if e != nil || !private(actual) || !os.SameFile(actual, held) {
+	if e != nil || !actual.IsDir() || (j.scratch && !private(actual)) || !os.SameFile(actual, held) {
 		return failure.New(failure.Audit, "Journal directory was replaced")
 	}
 	return nil
@@ -292,14 +327,18 @@ func Read(path string, limit int64) ([]byte, error) {
 // It reuses the same rooted publication and redaction policy; it is not a new run.
 func Session(parent string, secrets ...string) (*Journal, error) {
 	info, e := os.Lstat(parent)
-	if e != nil || !private(info) {
-		return nil, failure.New(failure.Audit, "Agent evidence parent must be a private engine journal")
+	if e != nil || !info.IsDir() {
+		return nil, failure.New(failure.Audit, "Agent evidence parent must be a real engine journal")
 	}
 	root, e := os.OpenRoot(parent)
 	if e != nil {
 		return nil, e
 	}
 	defer root.Close()
+	heldInfo, err := root.Stat(".")
+	if err != nil || !os.SameFile(info, heldInfo) {
+		return nil, failure.New(failure.Audit, "Agent evidence parent was replaced")
+	}
 	name := "agent-" + ID()
 	if e = root.Mkdir(name, 0700); e != nil {
 		return nil, e
@@ -308,7 +347,7 @@ func Session(parent string, secrets ...string) (*Journal, error) {
 	if e != nil {
 		return nil, e
 	}
-	return &Journal{Directory: filepath.Join(parent, name), View: map[string]any{}, root: child, secrets: append([]string{}, secrets...)}, nil
+	return &Journal{Directory: filepath.Join(parent, name), View: map[string]any{}, root: child, secrets: append([]string{}, secrets...), directories: []directoryIdentity{{parent, info}}}, nil
 }
 
 // Window reads a bounded portion through the held private directory handle.
@@ -396,12 +435,41 @@ func (j *Journal) Child(name string) (*Journal, error) {
 	if e != nil {
 		return nil, e
 	}
-	return &Journal{Directory: filepath.Join(j.Directory, name), View: map[string]any{}, root: root, secrets: append([]string{}, j.secrets...)}, nil
+	return &Journal{Directory: filepath.Join(j.Directory, name), View: map[string]any{}, root: root, secrets: append([]string{}, j.secrets...), directories: append([]directoryIdentity{}, j.directories...)}, nil
+}
+
+// Preflight verifies audit publication before native continuation changes Git state.
+func Preflight(common string) error {
+	_, err := prepareStorage(common)
+	return err
+}
+
+func prepareStorage(common string) ([]directoryIdentity, error) {
+	probe, e := openRunDirectory(common)
+	if e != nil {
+		return nil, e
+	}
+	probeErr := probe.Write("probe", []byte("git-ez audit storage probe\n"))
+	identities := append([]directoryIdentity{}, probe.directories[:len(probe.directories)-1]...)
+	cleanupErr := probe.root.Remove("probe")
+	removeErr := probe.Check()
+	if removeErr == nil {
+		removeErr = os.Remove(probe.Directory)
+	}
+	closeErr := probe.Close()
+	if e = errors.Join(probeErr, cleanupErr, closeErr, removeErr); e != nil {
+		return nil, failure.Wrap(failure.Audit, "Cannot prepare journal storage", e)
+	}
+	return identities, nil
 }
 
 // Scratch creates mandatory private engine state without creating a persistent
 // LLM audit. Native-only operations remove this workspace on completion.
 func Scratch(common string, view map[string]any, secrets ...string) (*Journal, error) {
+	identities, e := prepareStorage(common)
+	if e != nil {
+		return nil, e
+	}
 	directory, e := os.MkdirTemp("", "git-ez-engine-")
 	if e != nil {
 		return nil, e
@@ -411,7 +479,7 @@ func Scratch(common string, view map[string]any, secrets ...string) (*Journal, e
 		os.RemoveAll(directory)
 		return nil, e
 	}
-	j := &Journal{Directory: directory, View: view, root: root, secrets: append([]string{}, secrets...), common: common, workspace: directory, scratch: true}
+	j := &Journal{Directory: directory, View: view, root: root, secrets: append([]string{}, secrets...), common: common, workspace: directory, scratch: true, directories: identities}
 	view["id"] = ID()
 	view["schema_version"] = 4
 	view["created_at"] = time.Now().UTC().Format(time.RFC3339Nano)
@@ -437,6 +505,7 @@ func (j *Journal) Promote() error {
 	if e != nil {
 		return e
 	}
+	j.directories = next.directories
 	j.safety = j.root
 	j.root = next.root
 	j.Directory = next.Directory

@@ -5,6 +5,7 @@ package engine_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -239,5 +240,31 @@ func TestFailedCommitHookCannotManufactureAnotherResolverStop(t *testing.T) {
 	calls, e := os.ReadFile(filepath.Join(g.Dir, ".git/hook-calls"))
 	if e != nil || string(calls) != "called\n" {
 		t.Fatal("hook invocation count", string(calls), e)
+	}
+}
+
+func TestAuditStorageFailurePrecedesNativeMutation(t *testing.T) {
+	for _, continuation := range []bool{false, true} {
+		t.Run(fmt.Sprint(continuation), func(t *testing.T) {
+			g, f := fixture(t)
+			if continuation {
+				if _, err := g.Run(context.Background(), "merge", "main"); err != nil {
+					t.Fatal(err)
+				}
+			}
+			before := testutil.Must(t, g, "rev-parse", "HEAD")
+			index := testutil.Must(t, g, "ls-files", "--stage")
+			status := testutil.Must(t, g, "status", "--porcelain")
+			if err := os.WriteFile(filepath.Join(g.Dir, ".git/ez"), nil, 0600); err != nil {
+				t.Fatal(err)
+			}
+			r, err := newEngine(t, g, f).Run(context.Background(), engine.Request{Operation: "merge", Target: "main", Continue: continuation})
+			if err == nil || r.Integrated || len(f.Calls) != 0 {
+				t.Fatal(r, err)
+			}
+			if testutil.Must(t, g, "rev-parse", "HEAD") != before || testutil.Must(t, g, "ls-files", "--stage") != index || testutil.Must(t, g, "status", "--porcelain") != status {
+				t.Fatal("mutated before audit admission")
+			}
+		})
 	}
 }
