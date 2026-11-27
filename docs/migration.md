@@ -21,10 +21,12 @@ model capacity and output reservation. Diff, validation-output and aggregate aud
 storage are not constrained by the former context-byte ceiling. Meaningful file,
 execution and request/tool policies remain; see the configuration reference.
 
-Git 2.46 is the approved minimum, replacing 2.38 because older native conflicted
-rebases can lose a requested sign-off trailer. Go does not rewrite Git-owned
-messages to work around that upstream defect. Upgrade Git before using integration;
-native Git recovery remains available independently.
+Git 2.38 is the supported minimum. Older native Git releases can lose a
+requested `Signed-off-by` trailer when continuing a conflicted rebase; the
+maintainer accepts this upstream limitation. Git-ez delegates continuation
+without repairing messages or native metadata. This is independent of GPG/SSH
+cryptographic commit signatures. Git 2.46.0 includes the upstream fix; a recent
+Git is recommended. See [Git compatibility](git-compatibility.md).
 
 Schema 4 is retained with LLM-focused evidence. Model-free operations do not create
 persistent audit runs. Reading historical Python journals is best-effort; identical

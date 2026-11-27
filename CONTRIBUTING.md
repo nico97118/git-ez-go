@@ -1,8 +1,9 @@
 # Contributing
 
-Use Go 1.27+, Git 2.46+ and a supported Unix platform. Release/tool checks pin Go
+Use Go 1.27+, Git 2.38+ and a supported Unix platform. Release/tool checks pin Go
 in `.go-version`. Normal Go tests use native Git, a POSIX shell, `awk` and standard Unix utilities.
-SSH signing tests use `ssh-keygen`; Python 3.12+ is used only by
+See [Git compatibility](docs/git-compatibility.md) for minimum-version qualification
+and the accepted native signoff limitation. SSH signing tests use `ssh-keygen`; Python 3.12+ is used only by
 build/packaging and optional installed-CLI checks. No provider account is needed.
 
 ```sh

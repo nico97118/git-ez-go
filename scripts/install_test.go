@@ -115,7 +115,7 @@ func put(t *testing.T, path string, data []byte, mode os.FileMode) {
 func newInstaller(t *testing.T) *installerFixture {
 	t.Helper()
 	root := t.TempDir()
-	f := &installerFixture{t: t, root: root, home: root + "/home with spaces", bin: root + "/tools", temporary: root + "/temporary", log: root + "/requests", system: "Linux", arch: "x86_64", git: "2.46.0"}
+	f := &installerFixture{t: t, root: root, home: root + "/home with spaces", bin: root + "/tools", temporary: root + "/temporary", log: root + "/requests", system: "Linux", arch: "x86_64", git: "2.38.0"}
 	for _, p := range []string{f.home, f.bin, f.temporary} {
 		if err := os.Mkdir(p, 0700); err != nil {
 			t.Fatal(err)
@@ -521,7 +521,7 @@ func TestInstallerPrerequisitesAndArguments(t *testing.T) {
 			case "unsupported-cpu":
 				f.arch = "riscv64"
 			case "old-git":
-				f.git = "2.45.9"
+				f.git = "2.37.9"
 			case "invalid-git":
 				f.git = "invalid"
 			case "missing-version":

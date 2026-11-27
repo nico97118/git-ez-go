@@ -4,8 +4,10 @@ The native Go engine, Genkit protocols/context integration, interactive review,
 restoration, validation, locking, process cleanup and LLM-focused schema-4 audit
 have deterministic regression coverage. Native arm64 qualification exists for
 Linux, macOS and FreeBSD, including installed CLI and pager/cancellation checks.
-Six targets compile without CGO. Git 2.46 is the approved minimum and was actually
-executed during qualification; successful use of newer host Git alone is not the proof.
+Six targets compile without CGO. Git 2.38.0 is the supported minimum; qualification
+uses actual isolated Git executables, not simulated version output. See
+[Git compatibility](git-compatibility.md)
+for the executed version evidence and accepted native signoff limitation.
 
 ## Material acceptance requirements still open
 

@@ -20,7 +20,7 @@ install_main() {
             --help)
                 printf '%s\n' 'Usage: sh install.sh [--version vX.Y.Z[-PRERELEASE]] [--prefix DIRECTORY]' \
                     'Default: latest published stable release, or latest pre-release if no stable exists.' \
-                    'Installs git-ez and its manual under $HOME/.local. Requires Git 2.46+.'
+                    'Installs git-ez and its manual under $HOME/.local. Requires Git 2.38+.'
                 exit 0 ;;
             --version|--prefix)
                 [ "$#" -ge 3 ] && [ -n "$2" ] || fail "Missing value for $1. See --help."
@@ -40,8 +40,8 @@ install_main() {
     done
     git_version=$(git --version) || fail 'Cannot execute Git.'
     printf '%s\n' "$git_version" | awk '
-        $1=="git" && $2=="version" {split($3,v,"."); if(v[1]+0>2 || (v[1]+0==2 && v[2]+0>=46)) ok=1}
-        END {exit !ok}' || fail 'Git 2.46 or newer is required. Install or upgrade Git yourself, then retry.'
+        $1=="git" && $2=="version" {split($3,v,"."); if(v[1]+0>2 || (v[1]+0==2 && v[2]+0>=38)) ok=1}
+        END {exit !ok}' || fail 'Git 2.38 or newer is required. Install or upgrade Git yourself, then retry.'
     case $(uname -s) in Linux) system=linux ;; FreeBSD) system=freebsd ;; Darwin) system=darwin ;; *) fail 'Unsupported operating system; supported: Linux, FreeBSD, macOS.' ;; esac
     case $(uname -m) in x86_64|amd64) architecture=amd64 ;; aarch64|arm64) architecture=arm64 ;; *) fail 'Unsupported architecture; supported: amd64 and arm64.' ;; esac
     if command -v sha256sum >/dev/null 2>&1; then

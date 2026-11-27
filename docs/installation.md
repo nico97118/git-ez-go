@@ -7,12 +7,13 @@ available. Project releases: <https://github.com/nico97118/git-ez-go/releases>.
 
 ## Requirements
 
-Use native Git **2.46 or newer**, a supported Unix OS/CPU and standard platform
+Use native Git **2.38 or newer**, a supported Unix OS/CPU and standard platform
 utilities. See [platform compatibility](platforms.md) for runtime floors and actual
 qualification. Go, Python, Node.js and an agent-framework runtime are not needed
 for binary installation or use. Resolving conflicts requires your configured model
 endpoint; offline audit consultation does not. Your own validation command may
-require additional tools.
+require additional tools. Prefer a recent Git; see the accepted
+[native rebase signoff limitation](git-compatibility.md).
 
 ## Recommended installer
 

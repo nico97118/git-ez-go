@@ -7,7 +7,7 @@ it requires updating imports and requalification, not merely adding a remote.
 
 ## Local packaging
 
-Use Python 3.12+, native Git 2.46+ and the exact Go SDK in `.go-version`.
+Use Python 3.12+, native Git 2.38+ and the exact Go SDK in `.go-version`.
 Run from a committed checkout:
 
 ```sh
@@ -71,7 +71,7 @@ a QEMU FreeBSD VM on a hosted Linux runner provides a native FreeBSD kernel with
 new paid infrastructure. The pinned MIT-licensed `vmactions/freebsd-vm` action is
 selected, with non-root tests and copyback disabled. Its VM image and pkg repository
 are not content-addressed here: OS/package supply-chain inputs remain mutable.
-A version guard fails if installed Git is below 2.46 or Go cannot build the module.
+A version guard fails if installed Git is below 2.38 or Go cannot build the module.
 This is qualification, not a hermetic build claim. FreeBSD arm64 is covered by the
 available maintainer VM, not this amd64 CI job. Race detection is unavailable there.
 Runner labels/platforms must be reviewed when GitHub retires images.

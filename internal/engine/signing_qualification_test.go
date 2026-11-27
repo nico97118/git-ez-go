@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -62,9 +63,14 @@ func TestSigningControlsAndEmptyCommitPolicies(t *testing.T) {
 					}
 				} else {
 					testutil.Must(t, g, "verify-commit", "HEAD")
-					if !strings.Contains(body, "Signed-off-by: Test <test@example.invalid>") || len(f.Calls) != 1 {
+					if len(f.Calls) != 1 {
 						t.Fatal(body, len(f.Calls))
 					}
+				}
+				if op == "rebase" {
+					assertNativeRebaseSignoff(t, g, c)
+				} else if mode != "no-sign" && !strings.Contains(body, "Signed-off-by: Test <test@example.invalid>") {
+					t.Fatal(body)
 				}
 			})
 		}
@@ -153,4 +159,67 @@ func TestConfiguredNativeHooksCannotBeBypassed(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Compare against this executable's native continuation, including the accepted
+// pre-2.46 signoff defect. Cryptographic verification remains unconditional.
+func assertNativeRebaseSignoff(t *testing.T, assisted git.Client, c options.Commit) {
+	t.Helper()
+	native, _ := fixture(t)
+	for _, key := range []string{"gpg.format", "user.signingkey", "gpg.ssh.allowedSignersFile", "commit.gpgsign", "gpg.program"} {
+		value, err := assisted.Run(context.Background(), "config", "--get", key)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if value.ExitCode == 0 {
+			testutil.Must(t, native, "config", key, strings.TrimSpace(string(value.Stdout)))
+		}
+	}
+	args := append([]string{"rebase", "--merge"}, c.Flags(false, false)...)
+	result, err := native.Run(context.Background(), append(args, "main")...)
+	if err != nil || result.ExitCode != 1 || testutil.Must(t, native, "ls-files", "--unmerged") == "" {
+		t.Fatal("native rebase did not stop at a conflict", result, err)
+	}
+	testutil.Write(t, native, "file.txt", "combined\n")
+	testutil.Must(t, native, "add", "--", "file.txt")
+	result, err = native.Run(context.Background(), "rebase", "--continue")
+	if err != nil || result.ExitCode != 0 {
+		t.Fatal("native continuation failed", result, err)
+	}
+	// Compare messages/trailers, authorship, tree, direct parent, branch and
+	// replay count rather than nondeterministic cryptographic signature bytes.
+	for _, args := range [][]string{
+		{"show", "-s", "--format=%B%n%an <%ae>%n%aI%n%T%n%P", "HEAD"},
+		{"symbolic-ref", "HEAD"}, {"rev-list", "--count", "main..HEAD"},
+		{"status", "--porcelain"}, {"ls-files", "--unmerged"},
+	} {
+		want := testutil.Must(t, native, args...)
+		if got := testutil.Must(t, assisted, args...); got != want {
+			t.Fatalf("%v: assisted %q; native %q", args, got, want)
+		}
+	}
+	for _, g := range []git.Client{native, assisted} {
+		if testutil.Must(t, g, "rev-parse", "HEAD^") != testutil.Must(t, g, "rev-parse", "main") || testutil.Must(t, g, "rev-list", "--count", "main..HEAD") != "1" || testutil.Must(t, g, "status", "--porcelain") != "" {
+			t.Fatal("rebase topology or repository integrity changed")
+		}
+		active, err := g.Active(context.Background())
+		if err != nil || active {
+			t.Fatal("native operation metadata remains", active, err)
+		}
+		body := testutil.Must(t, g, "cat-file", "commit", "HEAD")
+		if c.Signing.Policy == options.Enabled {
+			testutil.Must(t, g, "verify-commit", "HEAD")
+		} else if strings.Contains(body, "gpgsig ") {
+			t.Fatal("signing disable ignored")
+		}
+	}
+	version := strings.Fields(testutil.Must(t, native, "--version"))[2]
+	parts := strings.Split(version, ".")
+	major, _ := strconv.Atoi(parts[0])
+	minor, _ := strconv.Atoi(parts[1])
+	message := testutil.Must(t, native, "show", "-s", "--format=%B", "HEAD")
+	if c.Signoff == options.Enabled && (major > 2 || major == 2 && minor >= 46) && !strings.Contains(message, "Signed-off-by: Test <test@example.invalid>") {
+		t.Fatal("fixed Git lost signoff", version, message)
+	}
+	t.Logf("%s: native/assisted signoff=%t; signing=%t; continuation exit=%d", version, strings.Contains(message, "Signed-off-by:"), c.Signing.Policy == options.Enabled, result.ExitCode)
 }

@@ -12,7 +12,7 @@ Keep native Git orchestration in the engine and Genkit in the agent adapter.
 The resolver investigates/proposes edits; the engine owns admission, immutable
 revisions, review, validation, staging, continuation and publication. Genkit owns
 context estimation/compression and native tool calling. Preserve native provider
-semantics, local-only observability, schema-4 LLM-focused audit and Git 2.46 minimum.
+semantics, local-only observability, schema-4 LLM-focused audit and Git 2.38 minimum.
 No custom context estimator, second harness, repository instructions, subagents,
 new provider/config format, remote telemetry, persistent agent recovery or Windows.
 No automatic fetch/push/stash/backup/worktree product features.

@@ -2,8 +2,10 @@
 
 Git-ez ships **six** CGO-disabled executables: Linux, FreeBSD and macOS, each for
 amd64 and arm64. One executable covers an OS/CPU combination; OS releases do not
-have separate assets. Native **Git 2.46+** is required on every platform. The
+have separate assets. Native **Git 2.38+** is required on every platform. The
 installer does not supply Git, emulate another CPU or upgrade the operating system.
+See [Git compatibility](git-compatibility.md) for the accepted native signoff
+limitation, version qualification and recommendation to use a recent Git.
 
 ## Runtime expectations, not certification
 

@@ -498,7 +498,7 @@ func TestOldGitIsRejectedBeforeNativeOperationChanges(t *testing.T) {
 	}
 	dir := t.TempDir()
 	wrapper := filepath.Join(dir, "git")
-	script := "#!/bin/sh\nfor argument do if [ \"$argument\" = --version ]; then printf 'git version 2.38.5\\n'; exit 0; fi; done\nexec '" + strings.ReplaceAll(realGit, "'", "'\"'\"'") + "' \"$@\"\n"
+	script := "#!/bin/sh\nfor argument do if [ \"$argument\" = --version ]; then printf 'git version 2.37.9\\n'; exit 0; fi; done\nexec '" + strings.ReplaceAll(realGit, "'", "'\"'\"'") + "' \"$@\"\n"
 	if err = os.WriteFile(wrapper, []byte(script), 0700); err != nil {
 		t.Fatal(err)
 	}
@@ -506,7 +506,7 @@ func TestOldGitIsRejectedBeforeNativeOperationChanges(t *testing.T) {
 	before := testutil.Must(t, g, "rev-parse", "HEAD")
 	index := testutil.Must(t, g, "ls-files", "--stage")
 	r, err := newEngine(t, g, f).Run(context.Background(), engine.Request{Operation: "merge", Target: "main"})
-	if err == nil || !strings.Contains(err.Error(), "Git 2.46") || r.Directory != "" || len(f.Calls) != 0 || testutil.Must(t, g, "rev-parse", "HEAD") != before || testutil.Must(t, g, "ls-files", "--stage") != index {
+	if err == nil || !strings.Contains(err.Error(), "Git 2.38") || r.Directory != "" || len(f.Calls) != 0 || testutil.Must(t, g, "rev-parse", "HEAD") != before || testutil.Must(t, g, "ls-files", "--stage") != index {
 		t.Fatal(r, err)
 	}
 }

@@ -16,7 +16,8 @@ requirement; complete Python parity and unconditional production readiness are n
 open acceptance requirements. No official release has been published yet; the
 installer will report that no suitable release exists until one is available.
 
-Requires **Git 2.46+** and a [compatible platform](docs/platforms.md).
+Requires **Git 2.38+** and a [compatible platform](docs/platforms.md).
+A recent Git is recommended; see the [native rebase signoff limitation](docs/git-compatibility.md).
 Recommended installation (executable and manual under `~/.local`):
 
 ```sh

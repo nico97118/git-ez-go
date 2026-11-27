@@ -11,6 +11,7 @@ standard/extended profile to maintain.
 | Code quality and workflow syntax | Formatting, module tidy, pinned actionlint, shell/Python syntax |
 | Dependency integrity and vulnerabilities | Module verification and pinned govulncheck |
 | Native Linux/macOS matrix | Git/toolchain verification, native vet, one complete verbose Go test invocation, one complete verbose race invocation, native CLI build, four focused CLI scenarios and native installer/manual qualification |
+| Compatibility Linux amd64 / Git 2.38.0 | Official source archive with pinned SHA-256, isolated installation and exact executable verification, native vet, complete normal/race Go suites and the same installed CLI/installer checks |
 | Native FreeBSD amd64 VM | Same native checks, grouped inside a single VM invocation as a non-root user with copyback disabled |
 | Six production compilation targets | Six named steps using the shared production build policy in `scripts/build.py` |
 
@@ -20,7 +21,11 @@ Linux amd64/arm64, macOS arm64/Intel and the FreeBSD 15.1 amd64 VM. Existing run
 labels, timeout budgets, SHA pins, read-only permissions and failure diagnostics
 are retained. Matrices use `fail-fast: false`.
 
-Each native platform runs:
+The minimum-Git job adds one Linux amd64 runner with a 40-minute budget, without
+expanding the native platform matrix. It is part of the reusable workflow required
+by release qualification. See [Git compatibility](git-compatibility.md).
+
+Each native platform and the minimum-Git job runs:
 
 ```sh
 CGO_ENABLED=0 go test -v -timeout 15m ./...
@@ -52,7 +57,8 @@ The maintenance cost and lost normal-test parallelism outweighed those savings.
 
 All native environments now use complete normal/race suites. This restores broad
 qualification and conventional Go discovery without custom coverage accounting.
-No production or Go test source changed. No measured hosted speedup is claimed:
+The CI simplification itself did not change production or Go test sources.
+No measured hosted speedup is claimed:
 compare actual hosted timings after this simplification, especially Intel macOS
 and the VM. Existing 35-minute native, 50-minute Intel and 40-minute VM budgets stay.
 
@@ -91,8 +97,9 @@ Publication still depends on both packaging and qualification, then on the exist
 tag, enable variable, protected environment, provenance/ancestry, draft upload and
 downloaded-asset verification gates. No secrets are passed to qualification.
 
-The eight ordinary CI status names remain unchanged; no branch-protection changes
-are required relative to the preceding refactor. The release qualification display
+The existing CI status names remain unchanged; the additional compatibility job
+has its own status. Branch protection may require that new status if checks are
+listed individually. The release qualification display
 name now says “Complete” instead of “Extended”; its dependency remains mandatory.
 No remote settings are changed. Hosted amd64 execution, reusable-workflow runtime,
 artifact handling and runner timings must still be confirmed on GitHub. Local

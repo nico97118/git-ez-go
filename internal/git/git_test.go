@@ -162,7 +162,7 @@ func TestNativeVersionRequirement(t *testing.T) {
 	for _, tc := range []struct {
 		version string
 		valid   bool
-	}{{"2.38.5", false}, {"2.45.9", false}, {"2.46.0", true}, {"2.51.0", true}, {"2.46.0 (vendor)", true}, {"3.0.0", true}, {"unknown", false}, {"2.x.0", false}} {
+	}{{"2.37.9", false}, {"2.38.0", true}, {"2.38.5", true}, {"2.43.0", true}, {"2.46.0", true}, {"2.51.0", true}, {"2.46.0 (vendor)", true}, {"3.0.0", true}, {"unknown", false}, {"2.x.0", false}} {
 		t.Run(tc.version, func(t *testing.T) {
 			dir := t.TempDir()
 			binary := filepath.Join(dir, "git")

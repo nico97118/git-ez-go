@@ -24,7 +24,7 @@ python3 - <<'CHECK'
 import re, subprocess
 version = subprocess.check_output(['git', '--version'], text=True).strip()
 print(version)
-assert tuple(map(int, re.search(r'(\d+)\.(\d+)', version).groups())) >= (2, 46), 'Git 2.46 or newer required'
+assert tuple(map(int, re.search(r'(\d+)\.(\d+)', version).groups())) >= (2, 38), 'Git 2.38 or newer required'
 CHECK
 go version
 end_section

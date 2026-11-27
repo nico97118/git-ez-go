@@ -64,7 +64,10 @@ Git remains responsible for operation state and recovery. Inspect the reported
 failure and native Git status before continuing or aborting an interrupted
 operation. Agent command controls do not constitute an operating-system sandbox.
 .SH REQUIREMENTS
-Git 2.46 or later on a supported Linux, FreeBSD or macOS system.
+Git 2.38 or later on a supported Linux, FreeBSD or macOS system.
+A recent Git is recommended. Older Git may omit a Signed-off-by trailer when
+continuing a conflicted rebase (fixed upstream in Git 2.46.0). Git-ez retains
+this native behavior; cryptographic commit signatures are separate.
 The standalone executable does not require Python or an installed manual.
 .SH SEE ALSO
 .BR git (1),
