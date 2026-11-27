@@ -378,3 +378,71 @@ func TestRequestBytesAreNotTreatedAsTokens(t *testing.T) {
 		})
 	}
 }
+
+// OpenRouter needs no provider branch: exercise its documented configuration
+// through native Git loading, Genkit tools and real conflict admission.
+func TestOpenRouterCompatibleConfiguration(t *testing.T) {
+	for _, suffix := range []string{"/api/v1", "/api/v1/chat/completions"} {
+		t.Run(suffix, func(t *testing.T) {
+			t.Setenv("OPENROUTER_API_KEY", "fixture-router-token")
+			t.Setenv("OPENAI_API_KEY", "fixture-wrong-token")
+			c, g, f, close := setup(t, "openai", read("file.txt"), write("file.txt", "combined\n"), finish(.95))
+			defer close()
+			endpoint := strings.TrimSuffix(c.Endpoint, "/v1/chat/completions") + suffix
+			for _, setting := range [][2]string{
+				{"provider", "openai"}, {"model", "openai/gpt-4o-mini"},
+				{"endpoint", endpoint}, {"apiKeyEnv", "OPENROUTER_API_KEY"},
+				{"requestOptions", `{"max_completion_tokens":null,"max_tokens":8192,"provider":{"require_parameters":true}}`},
+			} {
+				testutil.Must(t, g, "config", "--local", "ez."+setting[0], setting[1])
+			}
+			var err error
+			c, err = config.Load(context.Background(), g)
+			if err != nil {
+				t.Fatal(err)
+			}
+			r, err := runEngine(t, c, g)
+			if err != nil || !r.Integrated {
+				t.Fatal("compatible configuration failed")
+			}
+			f.mu.Lock()
+			defer f.mu.Unlock()
+			if len(f.requests) != 3 {
+				t.Fatal("unexpected request count", len(f.requests))
+			}
+			for i, req := range f.requests {
+				routing, _ := req["provider"].(map[string]any)
+				completion, exists := req["max_completion_tokens"]
+				if f.auth[i] != "Bearer fixture-router-token" || f.paths[i] != "/api/v1/chat/completions" || req["model"] != c.Model || req["max_tokens"] != float64(8192) || !exists || completion != nil || routing["require_parameters"] != true {
+					t.Fatalf("OpenRouter wire configuration changed: path=%s model=%v max_tokens=%v completion=%v present=%t routing=%v credential_match=%t", f.paths[i], req["model"], req["max_tokens"], completion, exists, routing, f.auth[i] == "Bearer fixture-router-token")
+				}
+			}
+			messages := f.requests[1]["messages"].([]any)
+			matched := false
+			for _, value := range messages {
+				message := value.(map[string]any)
+				if message["role"] == "tool" && message["tool_call_id"] == "call-1-0" {
+					matched = true
+				}
+			}
+			if !matched {
+				t.Fatal("native tool result reference lost")
+			}
+			if testutil.Must(t, g, "show", "HEAD:file.txt") != "combined" {
+				t.Fatal("proposal was not applied")
+			}
+			if err := filepath.WalkDir(r.Directory, func(path string, entry os.DirEntry, err error) error {
+				if err != nil || entry.IsDir() {
+					return err
+				}
+				data, err := os.ReadFile(path)
+				if strings.Contains(string(data), "fixture-router-token") || strings.Contains(string(data), "fixture-wrong-token") {
+					t.Error("credential persisted in audit")
+				}
+				return err
+			}); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}

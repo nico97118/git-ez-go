@@ -40,3 +40,16 @@ explicit engineering restrictions, not silently complete resource-limit parity.
 Do not claim full functional parity or unconditional production readiness. Repository
 hosting, deterministic CI and packaging preparation can proceed independently of
 the open real-model gate. No official release is authorized by these checks.
+
+## OpenRouter qualification
+
+OpenRouter is configured through the existing OpenAI-compatible provider; see the
+[assessment](openrouter.md) and [opt-in real-conflict procedure](../README.md#opt-in-local-smoke-test).
+Loopback scripted coverage verifies Git-loaded configuration, vendor-prefixed model
+IDs, selected credentials, native routing/token options, tool-result references and
+application of a proposal to a real temporary Git conflict. It does not establish
+live gateway behavior or semantic resolution quality for any OpenRouter model.
+Qualification requires a separately authorized probe and independently validated
+real conflict for each intended model/upstream combination. Models requiring opaque
+`reasoning_details` replay remain unqualified with Genkit v1.14.0. No live model was
+invoked for this integration assessment.

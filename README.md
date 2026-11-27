@@ -102,6 +102,84 @@ git ez rebase --continue
 `git-ez --help` and each command's help show supported options. Arbitrary Git option
 forwarding, automatic fetch/push/stash and automatic worktree creation are not provided.
 
+## OpenRouter
+
+OpenRouter uses the existing `openai` provider through Genkit's native
+OpenAI-compatible Chat Completions adapter. No extra plugin or dependency is needed.
+Use the exact OpenRouter model ID, including its vendor prefix:
+
+```sh
+git config --local ez.provider openai
+git config --local ez.endpoint https://openrouter.ai/api/v1/chat/completions
+git config --local ez.model openai/gpt-4o-mini
+git config --local ez.apiKeyEnv OPENROUTER_API_KEY
+git config --local ez.modelContextTokens 32768
+git config --local ez.modelMaxOutputTokens 8192
+git config --local ez.requestOptions '{"max_completion_tokens":null,"max_tokens":8192,"provider":{"require_parameters":true}}'
+```
+
+Supply `OPENROUTER_API_KEY` privately in the process environment through your secret
+manager; never put its value in commands, Git configuration, logs or commits. An
+existing `ez.apiKey` takes precedence: use a fresh repository for isolated tests.
+`OPENROUTER_API_KEY` is used only when selected by `ez.apiKeyEnv`.
+The explicit token options replace the adapter's OpenAI default with OpenRouter's
+`max_tokens` budget. Match the declared context/output capacities to the selected
+model. Change `ez.model` to test another ID; no built-in catalog restricts it.
+
+Choose a model and upstream endpoint supporting native tools, tool choice and
+multi-turn tool results. `provider.require_parameters` requests routing that honors
+the supplied parameters. Availability, pricing and resolution quality depend on the
+model/upstream; a successful `probe` establishes protocol compatibility only.
+Reasoning models requiring opaque `reasoning_details` replay are not qualified:
+Genkit v1.14.0's shared adapter handles textual reasoning but does not preserve that
+OpenRouter-specific field. The official plugin uses the same conversion path and
+would not remove this limitation. Prefer a non-reasoning model for the first test.
+See [OpenRouter protocol and integration assessment](docs/openrouter.md).
+
+### Opt-in local smoke test
+
+Run only after explicitly approving the selected model's cost and source disclosure.
+Both `probe` and conflict resolution invoke the remote model and may incur charges.
+With `git-ez` installed on PATH and the key supplied privately, create an isolated
+repository (no global Git settings, remote or publication):
+
+```sh
+smoke_dir=$(mktemp -d)
+cd "$smoke_dir"
+git init -b main
+git config --local user.name 'Smoke Test'
+git config --local user.email 'smoke@example.invalid'
+git config --local commit.gpgSign false
+printf 'apple\n' > fruit.txt
+git add fruit.txt
+git commit -m 'Add base fruit'
+git switch -c feature
+printf 'apple\nbanana\n' > fruit.txt
+git commit -am 'Add banana'
+git switch main
+printf 'apple\ncherry\n' > fruit.txt
+git commit -am 'Add cherry'
+```
+
+Apply the OpenRouter configuration above **inside this temporary repository**.
+Then, after cost approval:
+
+```sh
+git ez probe
+git ez merge feature --interactive --check sh -c 'test "$(LC_ALL=C sort fruit.txt)" = "$(printf "apple\nbanana\ncherry")"'
+git status --short
+git log -1 --oneline
+cat fruit.txt
+git ez audit show
+```
+
+Review that each fruit appears exactly once and accept only a correct proposal
+with successful validation. The merge itself creates the real Git conflict; no
+separate `git merge` is needed. A successful smoke test has a merge commit, a clean
+working tree, all three fruits and an audit showing validated, accepted application.
+On failure, inspect the exit status and local audit; do not equate HTTP success or
+compilation with semantic correctness. Keep any private traces local and untracked.
+
 ## Audit and trust
 
 ```sh
