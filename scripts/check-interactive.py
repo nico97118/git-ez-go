@@ -36,16 +36,20 @@ with tempfile.TemporaryDirectory(prefix='git-ez-interactive-smoke-') as temporar
     if action=='interrupt':
      child=subprocess.Popen(['git','ez',*argv[1:]],cwd=directory,env=env,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,start_new_session=True)
      output=bytearray();deadline=time.monotonic()+60
-     while b'[q] Quit:' not in output and time.monotonic()<deadline:
+     while b'Choice: ' not in output and time.monotonic()<deadline:
       readable,_,_=select.select([child.stdout],[],[],.1)
       if readable:
        data=os.read(child.stdout.fileno(),65536)
        if not data:break
        output.extend(data)
-     assert b'[q] Quit:' in output,(provider,output)
+     assert b'Choice: ' in output,(provider,output)
      child.send_signal(signal.SIGINT);child.wait(timeout=15);tail,_=child.communicate();output.extend(tail)
      result=types.SimpleNamespace(returncode=child.returncode,stdout=output.decode(errors='replace'),stderr='')
     else:result=subprocess.run(argv,cwd=directory,env=env,input=answers,text=True,capture_output=True,timeout=60)
+    presentation=result.stdout+result.stderr
+    assert 'Agent confidence:' not in presentation,(provider,action,presentation)
+    assert 'Review proposed resolution' in presentation and 'model-reported, not independently verified' in presentation,(provider,action,presentation)
+    if action!='interrupt':assert 'Review proposed resolution' not in result.stdout and 'Choice: ' in result.stderr,(provider,action,result.stdout,result.stderr)
     success=action in ('accept','revise','validation');assert result.returncode==(-signal.SIGINT if action=='interrupt' else 0 if success else 1),(provider,action,result.stdout,result.stderr)
     assert len(requests)==(6 if action in ('revise','validation') else 3),(provider,action,len(requests))
     if success:assert git('status','--porcelain')=='' and file.read_text()=='combined\n'
