@@ -43,6 +43,15 @@ Do not claim full functional parity or unconditional production readiness. Repos
 hosting, deterministic CI and packaging preparation can proceed independently of
 the open real-model gate. No official release is authorized by these checks.
 
+## Rerere fixture isolation
+
+The multi-stop rebase rerere regression disables automatic maintenance in its
+temporary repository. Git 2.55.0 can run background `rerere gc` between picks,
+colliding on `MERGE_RR.lock` before the next conflict stop is fully written.
+The regression requires exact native exit codes at each training stop and still
+exercises both rerere autoupdate overrides. It does not qualify concurrent
+maintenance; production Git configuration and failure handling remain native.
+
 ## OpenRouter qualification
 
 OpenRouter is configured through the existing OpenAI-compatible provider; see the

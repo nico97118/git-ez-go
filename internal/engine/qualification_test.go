@@ -308,12 +308,16 @@ func TestRerereOverridePersistsAcrossEveryNativeRebaseStop(t *testing.T) {
 	for _, autoupdate := range []bool{false, true} {
 		t.Run(fmt.Sprint(autoupdate), func(t *testing.T) {
 			g, _ := fixture(t)
+			// Keep background rerere GC from racing the next rebase stop on Git
+			// versions affected by MERGE_RR.lock contention (including 2.55.0).
+			// This fixture qualifies rerere policy across stops, not maintenance.
+			testutil.Must(t, g, "config", "maintenance.auto", "false")
 			testutil.Commit(t, g, "file.txt", "second\n", "second")
 			original := testutil.Must(t, g, "rev-parse", "HEAD")
 			testutil.Must(t, g, "config", "rerere.enabled", "true")
 			native, err := g.Run(context.Background(), "rebase", "main")
 			t.Logf("start rerere training: exit=%d stdout=%s stderr=%s err=%v", native.ExitCode, native.Stdout, native.Stderr, err)
-			if err != nil || native.ExitCode == 0 {
+			if err != nil || native.ExitCode != 1 {
 				t.Fatalf("start rerere training: exit=%d stdout=%s stderr=%s err=%v", native.ExitCode, native.Stdout, native.Stderr, err)
 			}
 			for i, text := range []string{"rr-one\n", "rr-two\n"} {
@@ -324,7 +328,11 @@ func TestRerereOverridePersistsAcrossEveryNativeRebaseStop(t *testing.T) {
 				testutil.Must(t, g, "add", "file.txt")
 				native, err = g.Run(context.Background(), "rebase", "--continue")
 				t.Logf("continue rerere training stop %d: exit=%d stdout=%s stderr=%s err=%v", i+1, native.ExitCode, native.Stdout, native.Stderr, err)
-				if err != nil || (native.ExitCode == 0) != (i == 1) {
+				expectedExit := 1
+				if i == 1 {
+					expectedExit = 0
+				}
+				if err != nil || native.ExitCode != expectedExit {
 					t.Fatalf("continue rerere training stop %d: exit=%d stdout=%s stderr=%s err=%v", i+1, native.ExitCode, native.Stdout, native.Stderr, err)
 				}
 			}
