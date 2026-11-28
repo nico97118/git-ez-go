@@ -82,3 +82,28 @@ failures, and shared audits carry no authenticity guarantee against other writer
 Regression coverage includes existing 0755 parents, writable shared run directories,
 restrictive new artifacts, rejection of unsafe/unwritable storage, unchanged Git
 HEAD/index/worktree on admission failure, and ancestor replacement during a run.
+
+## Terminal presentation qualification
+
+Terminal changes must preserve native Git routing/continuation, check and
+interactive admission policies, structured engine results and schema-4 evidence.
+The explicitly changed human stdout/review contracts are described in
+[terminal behavior](terminal.md).
+
+`TestAssistedTerminalLevelsAndStreams`,
+`TestInteractiveTerminalReviewIsOnStderrAndQuietStillReviews`,
+`TestTerminalFailuresReportActualGitState` and
+`TestNativeSuccessIsTransparentForEachOperation` exercise the application boundary
+with real Git and deterministic resolvers. The scripted native adapter regression
+checks verbose metadata, redaction and absence of unrestricted payloads; the probe
+regression checks JSON stdout on success and incompatibility. Engine regressions
+also assert multiple-stop statistics, continuation transfer, check retries and
+signal cleanup with reporting enabled. Reporter tests cover line-oriented output,
+animation cancellation/join, quiet/verbose behavior and unavailable writers.
+
+Installed interactive checks validate review streams and bindings for both native
+provider protocols. Installed signal checks exercise actual pseudo-terminal
+animation with `NO_COLOR`, unchanged terminal attributes and interruption during
+a managed check. These checks use synthetic local providers/processes, not real
+models. Cross-compilation alone does not establish native terminal behavior on a
+target platform; run the native suites and installed checks on each release target.

@@ -41,3 +41,17 @@ Audit reports stream offline through native Git pager conventions. No database,
 external observability platform, repository instruction loader, persistent agent
 recovery or OS sandbox is provided. The approved lexical/no-follow Git metadata
 admission remains deliberate, including legitimate linked-worktree handling.
+
+## Terminal reporting
+
+`internal/terminal` owns serialized, best-effort stderr reporting and one joined
+TTY animation at a time. The engine reports at existing conflict, attempt,
+proposal and check boundaries; the agent adapter reports at native model/tool
+hooks. Reporting returns no policy decisions or errors into the resolution flow.
+No event bus, provider-specific renderer or new persistent state is introduced.
+The application formats the existing structured result with small presentation
+statistics. Review continues to render immutable captured evidence and verify its
+hashes; hiding raw evidence manifests/self-confidence from the terminal does not
+remove them from the journal. Native lifecycle commands mirror their original
+streams while preserving the captures used by the engine. See
+[terminal behavior](terminal.md) for output contracts and timing definitions.

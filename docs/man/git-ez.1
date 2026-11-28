@@ -43,6 +43,34 @@ arguments belong to the validation command.
 .B --continue
 Continue an existing native operation. Assistance eligibility follows the current
 Git operation state; unrelated native failures remain manual recovery tasks.
+.TP
+.B --quiet, -q
+Suppress git-ez progress and successful assisted summaries. Native Git output,
+interactive review, errors and warnings remain visible.
+.TP
+.B --verbose, -v
+Include model request, tool-name and reported-token metadata. Integration
+verbosity options control git-ez only; the last one wins. They are not forwarded
+to Git. Audit show retains its existing verbose evidence behavior.
+.SH TERMINAL OUTPUT
+Native Git stdout and stderr retain their routing. Native-only success adds no
+git-ez summary. Progress, assisted summaries, reviews and recovery advice use
+stderr. Help, version, audit results and probe JSON use stdout.
+.PP
+Capable stderr terminals receive elapsed-time spinners; pipes and dumb terminals
+receive stage lines without animation. No colors are used, including when
+NO_COLOR is set. Model tokens, reasoning and tool payloads are not streamed.
+.PP
+Review separates captured diffs and model-reported rationale from git-ez content
+checks and user check results. Numerical model confidence remains in the audit.
+Check output is captured; failure shows bounded excerpts and retained diagnostic
+locations when available. A final check failure does not undo completed Git
+integration and never recommends continuing an already completed operation.
+.PP
+The former Status/Git integration completed/Journal stdout block is replaced by
+human summaries on stderr. Scripts parsing those strings must adapt; exit-code,
+probe JSON and offline audit contracts are unchanged.
+See docs/terminal.md for examples and statistics definitions.
 .SH CONFIGURATION
 Use native Git configuration under
 .BR ez.* .

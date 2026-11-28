@@ -100,6 +100,11 @@ git rebase --continue
 git ez rebase --continue
 ```
 
+Assistance reports progress and concise results on stderr. Native-only success adds
+no git-ez summary. Use `--quiet` to suppress assistance progress or `--verbose`
+for bounded execution metadata. Interactive reviews and failures remain visible.
+See [terminal behavior and output conventions](docs/terminal.md) for examples.
+
 `git-ez --help` and each command's help show supported options. Arbitrary Git option
 forwarding, automatic fetch/push/stash and automatic worktree creation are not provided.
 
