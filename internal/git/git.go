@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"unicode/utf8"
 
 	"github.com/nico97118/git-ez-go/internal/failure"
@@ -74,6 +75,11 @@ func (c Client) Run(ctx context.Context, args ...string) (process.Result, error)
 // RunWithFiles scopes the capture-only sequence editor and inherited descriptors
 // to this invocation. os/exec exposes ExtraFiles at descriptors 3, 4, ... .
 func (c Client) RunWithFiles(ctx context.Context, files []*os.File, sequenceEditor string, args ...string) (process.Result, error) {
+	return c.RunWithFilesStreams(ctx, files, sequenceEditor, nil, nil, args...)
+}
+
+// RunWithFilesStreams mirrors native output while retaining the engine capture.
+func (c Client) RunWithFilesStreams(ctx context.Context, files []*os.File, sequenceEditor string, out, diagnostics io.Writer, args ...string) (process.Result, error) {
 	env := c.environment(true)
 	if sequenceEditor != "" {
 		for i, s := range env {
@@ -85,8 +91,42 @@ func (c Client) RunWithFiles(ctx context.Context, files []*os.File, sequenceEdit
 	argv := append([]string{"git", "--literal-pathspecs", "-c", "merge.conflictStyle=diff3"}, args...)
 	// Native Git retains its process-group semantics, including hooks. Owned
 	// agent/check subprocess groups are a separate explicit process.Run mode.
-	return process.Run(ctx, process.Request{Args: argv, Dir: c.Dir, Env: env, ExtraFiles: files, Foreground: true})
+	request := process.Request{Args: argv, Dir: c.Dir, Env: env, ExtraFiles: files, Foreground: true}
+	if out == nil && diagnostics == nil {
+		return process.Run(ctx, request)
+	}
+	var stdout, stderr streamCapture
+	ow, ew := io.Writer(&stdout), io.Writer(&stderr)
+	if out != nil {
+		ow = io.MultiWriter(out, &stdout)
+	}
+	if diagnostics != nil {
+		ew = io.MultiWriter(diagnostics, &stderr)
+	}
+	request.Stdout, request.Stderr = ow, ew
+	result, err := process.Run(ctx, request)
+	result.Stdout, result.Stderr = stdout.snapshot(), stderr.snapshot()
+	return result, err
 }
+
+// A cleanup-uncertain process may still own a pipe writer when Run returns.
+// Snapshot captures without racing those writers or assuming they have stopped.
+type streamCapture struct {
+	mu     sync.Mutex
+	buffer bytes.Buffer
+}
+
+func (c *streamCapture) Write(p []byte) (int, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.buffer.Write(p)
+}
+func (c *streamCapture) snapshot() []byte {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return append([]byte(nil), c.buffer.Bytes()...)
+}
+
 func (c Client) Checked(ctx context.Context, args ...string) (process.Result, error) {
 	r, e := c.Run(ctx, args...)
 	if e != nil {

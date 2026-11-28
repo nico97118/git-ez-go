@@ -47,7 +47,7 @@ func New(out io.Writer, level Level, secret string) *Reporter {
 		out = io.Discard
 	}
 	f, ok := out.(*os.File)
-	return &Reporter{out: out, level: level, secret: secret, tty: ok && terminal(f) && os.Getenv("TERM") != "dumb"}
+	return &Reporter{out: out, level: level, secret: secret, tty: ok && terminal(f) && os.Getenv("TERM") != "" && os.Getenv("TERM") != "dumb"}
 }
 func (r *Reporter) safe(s string) string {
 	if r.secret != "" {
@@ -172,4 +172,22 @@ func Command(args []string) string {
 		}
 	}
 	return strings.Join(out, " ")
+}
+
+// SetSecret updates redaction after native continuation loads model configuration.
+func (r *Reporter) SetSecret(secret string) {
+	if r == nil {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.secret = secret
+}
+
+func Count(n int, singular string) string {
+	word := singular
+	if n != 1 {
+		word += "s"
+	}
+	return fmt.Sprintf("%d %s", n, word)
 }

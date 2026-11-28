@@ -5,6 +5,7 @@ package terminal
 import (
 	"bytes"
 	"context"
+	"io"
 	"strings"
 	"testing"
 )
@@ -54,4 +55,17 @@ func TestCommandKeepsArgumentBoundaries(t *testing.T) {
 	if got := Command([]string{"make", "a b", "x'y", ""}); got != "make 'a b' 'x'\"'\"'y' ''" {
 		t.Fatal(got)
 	}
+}
+
+type unavailableWriter struct{}
+
+func (unavailableWriter) Write([]byte) (int, error) { return 0, io.ErrClosedPipe }
+func TestUnavailableReportingDoesNotBlockLifecycle(t *testing.T) {
+	r := New(unavailableWriter{}, Verbose, "")
+	r.tty = true
+	stop := r.Begin(context.Background(), "Waiting")
+	r.Detail("Metadata")
+	stop()
+	r.Stop()
+	r.Diagnostic("Failure remains an operation result, not a reporting decision")
 }

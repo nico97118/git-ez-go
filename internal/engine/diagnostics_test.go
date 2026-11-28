@@ -14,6 +14,7 @@ import (
 
 	"github.com/nico97118/git-ez-go/internal/engine"
 	"github.com/nico97118/git-ez-go/internal/resolver"
+	"github.com/nico97118/git-ez-go/internal/terminal"
 )
 
 func TestOptionalValidationDiagnosticsPreserveCheckAndIntegrationStatus(t *testing.T) {
@@ -35,7 +36,14 @@ func TestOptionalValidationDiagnosticsPreserveCheckAndIntegrationStatus(t *testi
 					e.In = strings.NewReader("a\nq\n")
 					var warnings bytes.Buffer
 					e.Err = &warnings
+					e.Report = terminal.New(&warnings, terminal.Quiet, "")
 					result, err := e.Run(context.Background(), engine.Request{Operation: "merge", Target: "main", Interactive: interactive, Validation: []string{"/bin/sh", "-c", fmt.Sprintf("printf 'available diagnostic-secret'; printf 'available diagnostic-secret' >&2; exit %d", exit)}})
+					if result.FinalValidationFailed != (!interactive && exit != 0) {
+						t.Fatal("diagnostic loss changed final check status", result, err)
+					}
+					if exit == 0 && strings.Contains(warnings.String(), "Validation failed") {
+						t.Fatal(warnings.String())
+					}
 					if (err == nil) != (exit == 0) {
 						t.Fatal(result, err)
 					}
@@ -91,6 +99,7 @@ func TestOptionalAttemptDiagnosticCopyDoesNotBlockAcceptance(t *testing.T) {
 			e.In = strings.NewReader("a\n")
 			var warnings bytes.Buffer
 			e.Err = &warnings
+			e.Report = terminal.New(&warnings, terminal.Quiet, "")
 			result, err := e.Run(context.Background(), engine.Request{Operation: "merge", Target: "main", Interactive: true, Validation: []string{"/bin/sh", "-c", "printf stdout; printf stderr >&2"}})
 			if err != nil || !result.Integrated {
 				t.Fatal(result, err)

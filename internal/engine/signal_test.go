@@ -18,6 +18,7 @@ import (
 	"github.com/nico97118/git-ez-go/internal/engine"
 	"github.com/nico97118/git-ez-go/internal/process"
 	"github.com/nico97118/git-ez-go/internal/resolver"
+	"github.com/nico97118/git-ez-go/internal/terminal"
 )
 
 func TestInteractiveSIGINTHelper(t *testing.T) {
@@ -41,6 +42,7 @@ func TestInteractiveSIGINTHelper(t *testing.T) {
 		return d, e
 	}))
 	en.Out = io.Discard
+	en.Report = terminal.New(io.Discard, terminal.Default, "")
 	q := engine.Request{Operation: "merge", Target: "main", Interactive: true}
 	if phase == "check" {
 		q.Validation = []string{"/bin/sh", "-c", "printf ready > \"$1\"; sleep 0.4; printf late > file.txt", "helper", ready}

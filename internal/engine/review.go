@@ -22,6 +22,7 @@ import (
 	"github.com/nico97118/git-ez-go/internal/process"
 	"github.com/nico97118/git-ez-go/internal/resolver"
 	"github.com/nico97118/git-ez-go/internal/review"
+	"github.com/nico97118/git-ez-go/internal/terminal"
 )
 
 func (s *session) proposalFiles(stages git.Conflicts, baseline map[string]*fingerprint, extra []string) ([]string, []fileEvidence, error) {
@@ -131,8 +132,8 @@ func (s *session) captureReview(j *journal.Journal, decision resolver.Decision, 
 		hashes[name] = reviewDigest{Hash: hash, Bytes: size}
 	}
 	render := func(out io.Writer) error {
-		for _, name := range names {
-			if _, e := fmt.Fprintln(out, name+":"); e != nil {
+		for _, name := range []string{"worktree.diff"} {
+			if _, e := fmt.Fprintln(out, "Proposed diff:"); e != nil {
 				return e
 			}
 			source, e := j.OpenEvidence(name)
@@ -147,7 +148,7 @@ func (s *session) captureReview(j *journal.Journal, decision resolver.Decision, 
 				return e
 			}
 		}
-		_, e := fmt.Fprintln(out, review.SafeText(string(j.Redact([]byte("Agent rationale, reported checks and uncertainties: "+decision.Rationale)))))
+		_, e := fmt.Fprintln(out, review.SafeText(string(j.Redact([]byte("Resolution summary and uncertainties (model-reported, not independently verified):\n"+decision.Rationale)))))
 		return e
 	}
 	return render, hashes, nil
@@ -251,7 +252,7 @@ func (s *session) reviewConflicts(stop resolver.Stop, stages git.Conflicts, roun
 				return s.journal.Save()
 			}
 			s.result.ResolverCalls++
-			decision, resolveErr := s.engine.Resolver.Resolve(s.ctx, current)
+			decision, resolveErr := s.resolveAttempt(current, len(previous)+1)
 			record["resolution"] = decision
 			if cleanupUncertain(resolveErr) {
 				captureErr := j.JSON("decision.json", decision)
@@ -287,6 +288,7 @@ func (s *session) reviewConflicts(stop resolver.Stop, stages git.Conflicts, roun
 				}
 				return failure.Wrap(failure.Execution, "Resolver failed; proposal retained before restoration", resolveErr)
 			}
+			s.engine.Report.Info("git-ez: Validating proposal...")
 			if e = decision.Validate(); e != nil {
 				return e
 			}
@@ -378,7 +380,22 @@ func (s *session) reviewConflicts(stop resolver.Stop, stages git.Conflicts, roun
 			if e != nil {
 				return e
 			}
-			action, user, e := review.Prompt(s.ctx, s.reviewInput, s.engine.Out, review.Proposal{Render: display, Confidence: decision.Confidence, ValidationFailed: failed, Diagnostic: diagnostic})
+			reviewOut := s.engine.Err
+			if reviewOut == nil {
+				reviewOut = io.Discard
+			}
+			fmt.Fprintf(reviewOut, "git-ez: Review proposed resolution\nConflict set %d | %s | Attempt %d\n", s.result.ConflictSets, terminal.Count(len(stop.Conflicts), "file"), len(previous)+1)
+			for _, c := range stop.Conflicts {
+				fmt.Fprintln(reviewOut, review.SafeText(string(s.journal.Redact([]byte("  "+c.Path)))))
+			}
+			check := "User check: not requested"
+			if len(s.request.Validation) > 0 {
+				check = "User check: passed"
+				if failed {
+					check = "User check: failed"
+				}
+			}
+			action, user, e := review.Prompt(s.ctx, s.reviewInput, reviewOut, review.Proposal{Render: display, Confidence: decision.Confidence, ValidationFailed: failed, Diagnostic: diagnostic, Validation: check})
 			record["decision"] = action
 			record["user_feedback"] = string(s.journal.Redact([]byte(user)))
 			if saveErr := s.journal.Save(); saveErr != nil {

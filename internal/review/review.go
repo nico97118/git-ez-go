@@ -61,6 +61,7 @@ func SafeText(s string) string {
 type Proposal struct {
 	Render              func(io.Writer) error
 	Display, Diagnostic string
+	Validation          string
 	Confidence          float64
 	ValidationFailed    bool
 }
@@ -78,7 +79,7 @@ func Prompt(ctx context.Context, in *Input, out io.Writer, p Proposal) (action, 
 	if err != nil {
 		return
 	}
-	if err = display(fmt.Sprintf("Agent confidence: %g", p.Confidence)); err != nil {
+	if err = display("Validation (git-ez):\n  Proposal content and conflict-marker checks passed.\n  " + p.Validation); err != nil {
 		return
 	}
 	if p.ValidationFailed {
@@ -91,7 +92,7 @@ func Prompt(ctx context.Context, in *Input, out io.Writer, p Proposal) (action, 
 		}
 	}
 	for {
-		prompt := "[a] Accept / [r] Reject / Reprompt / [q] Quit: "
+		prompt := "[a] Accept / [r] Revise (reject and reprompt) / [q] Quit\nChoice: "
 		if p.ValidationFailed {
 			prompt = "[r] Retry with feedback / [q] Quit: "
 		}

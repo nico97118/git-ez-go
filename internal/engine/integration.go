@@ -139,7 +139,7 @@ func (s *session) step(editor string, files []*os.File, args ...string) (process
 	if e != nil {
 		return process.Result{}, e
 	}
-	r, e := g.RunWithFiles(s.ctx, files, editor, append(append([]string{}, s.prefix...), args...)...)
+	r, e := g.RunWithFilesStreams(s.ctx, files, editor, s.engine.Out, s.engine.Err, append(append([]string{}, s.prefix...), args...)...)
 	if e != nil {
 		return r, e
 	}

@@ -7,12 +7,9 @@ package application
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"os"
-	"strings"
-	"unicode"
 
 	"github.com/nico97118/git-ez-go/internal/agent"
 	"github.com/nico97118/git-ez-go/internal/audit"
@@ -22,6 +19,7 @@ import (
 	"github.com/nico97118/git-ez-go/internal/failure"
 	"github.com/nico97118/git-ez-go/internal/git"
 	"github.com/nico97118/git-ez-go/internal/resolver"
+	"github.com/nico97118/git-ez-go/internal/terminal"
 )
 
 type Application struct{ Resolver resolver.Resolver }
@@ -71,14 +69,25 @@ func (a Application) Execute(ctx context.Context, q cli.Request, streams cli.Str
 		}
 		return 0, nil
 	}
+	level := terminal.Default
+	if q.Quiet {
+		level = terminal.Quiet
+	} else if q.Verbose {
+		level = terminal.Verbose
+	}
+	report := terminal.New(streams.Err, level, c.ResolvedAPIKey(nil))
+	defer report.Stop()
 	selected := a.Resolver
 	if selected == nil {
-		selected = agent.New(c)
+		adapter := agent.New(c)
+		adapter.Report = report
+		selected = adapter
 	}
 	en, e := engine.New(ctx, g, c, selected)
 	if e != nil {
 		return 2, e
 	}
+	en.Report = report
 	en.In = streams.In
 	en.Out = streams.Out
 	en.Err = streams.Err
@@ -87,31 +96,10 @@ func (a Application) Execute(ctx context.Context, q cli.Request, streams cli.Str
 		target = *q.Target
 	}
 	r, e := en.Run(ctx, engine.Request{Operation: q.Command, Target: target, Onto: q.Onto, Rebase: q.Rebase, Commit: q.Commit, MergeFF: q.MergeFF, Rerere: q.RerereAutoupdate, Validation: q.Check, Continue: q.Continue, Interactive: q.Interactive})
-	if (errors.Is(e, context.Canceled) || r.Status == "interrupted") && !failure.IsKind(e, failure.Cleanup) {
-		continuationHint(ctx, en.Git, en.Config, q, streams.Err)
-	}
-	if r.Status != "" {
-		// Result metadata is independent from command success; a failed final check
-		// must never recommend continuing a native operation that already completed.
-		text := fmt.Sprintf("Status: %s\nGit integration completed: %t\n", r.Status, r.Integrated)
-		if r.Directory != "" {
-			text += "Journal: " + r.Directory + "\n"
-		}
-		if token := en.Config.ResolvedAPIKey(nil); token != "" {
-			text = strings.ReplaceAll(text, token, "<redacted>")
-		}
-		var safe strings.Builder
-		for _, ch := range text {
-			if ch == '\n' || unicode.IsPrint(ch) && ch != '`' {
-				safe.WriteRune(ch)
-			} else {
-				fmt.Fprintf(&safe, "\\u%04x", ch)
-			}
-		}
-		if _, writeErr := fmt.Fprint(streams.Out, safe.String()); writeErr != nil && e == nil {
-			return 1, failure.Wrap(failure.Execution, "Cannot write integration result", writeErr)
-		}
-	}
+	report.Stop()
+	report.SetSecret(en.Config.ResolvedAPIKey(nil))
+	operationSummary(ctx, en, q, r, e, report, streams.Err)
+
 	if e != nil {
 		return failure.ExitCode(e), e
 	}

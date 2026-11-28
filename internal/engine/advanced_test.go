@@ -3,6 +3,7 @@
 package engine_test
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 	"github.com/nico97118/git-ez-go/internal/engine"
 	"github.com/nico97118/git-ez-go/internal/options"
 	"github.com/nico97118/git-ez-go/internal/resolver"
+	"github.com/nico97118/git-ez-go/internal/terminal"
 	"github.com/nico97118/git-ez-go/internal/testutil"
 )
 
@@ -25,6 +27,8 @@ func TestRebaseMultipleStopsAndEmptyResolution(t *testing.T) {
 				f.Edits["file.txt"] = &text
 			}
 			e := newEngine(t, g, f)
+			var progress bytes.Buffer
+			e.Report = terminal.New(&progress, terminal.Default, "")
 			r, err := e.Run(context.Background(), engine.Request{Operation: "rebase", Target: "main", Rebase: options.Rebase{Empty: policy}})
 			if policy == "stop" {
 				if err == nil || r.Integrated || len(f.Calls) != 1 {
@@ -34,6 +38,9 @@ func TestRebaseMultipleStopsAndEmptyResolution(t *testing.T) {
 			}
 			if err != nil || !r.Integrated || len(f.Calls) != 2 {
 				t.Fatal(r, err, len(f.Calls))
+			}
+			if r.ConflictSets != 2 || r.ConflictFiles != 2 || r.ResolutionTime <= 0 || strings.Count(progress.String(), "Conflict set resolved") != 2 {
+				t.Fatal(r, progress.String())
 			}
 			if policy == "keep" && testutil.Must(t, g, "rev-list", "--count", "main..HEAD") != "2" {
 				t.Fatal("empty commits not retained")
@@ -201,6 +208,8 @@ func TestNativeContinuationOwnershipAndTransfer(t *testing.T) {
 				}
 				index := testutil.Must(t, g, "ls-files", "--stage")
 				en := newEngine(t, g, f)
+				var progress bytes.Buffer
+				en.Report = terminal.New(&progress, terminal.Default, "")
 				pending, e := en.Run(context.Background(), engine.Request{Operation: "rebase", Continue: true})
 				if e != nil || pending.NativeStatus == nil || *pending.NativeStatus == 0 || len(f.Calls) > 0 || testutil.Must(t, g, "ls-files", "--stage") != index {
 					t.Fatal("adopted manual stop", pending, e)
@@ -210,6 +219,9 @@ func TestNativeContinuationOwnershipAndTransfer(t *testing.T) {
 				done, e := en.Run(context.Background(), engine.Request{Operation: "rebase", Continue: true})
 				if e != nil {
 					t.Fatal(done, e)
+				}
+				if strings.Contains(progress.String(), "Resolving conflict set") != second {
+					t.Fatal(progress.String())
 				}
 				if second {
 					if !done.Integrated || len(f.Calls) != 1 || *f.Calls[0].Conflicts[0].Theirs != "second\n" {

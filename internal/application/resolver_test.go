@@ -38,7 +38,7 @@ func TestCLIResolvesUsingActualGenkitAdapter(t *testing.T) {
 		}
 		if calls == 3 {
 			name = "finish"
-			args = map[string]any{"rationale": "Preserve both branches", "confidence": .95}
+			args = map[string]any{"rationale": "hidden-reasoning authorization-secret", "confidence": .95}
 		}
 		payload, _ := json.Marshal(args)
 		w.Header().Set("Content-Type", "application/json")
@@ -49,11 +49,23 @@ func TestCLIResolvesUsingActualGenkitAdapter(t *testing.T) {
 	testutil.Must(t, g, "merge", "--abort")
 	testutil.Must(t, g, "config", "ez.model", "fixture")
 	testutil.Must(t, g, "config", "ez.endpoint", server.URL+"/v1/chat/completions")
+	testutil.Must(t, g, "config", "ez.apiKey", "authorization-secret")
 	var out, err bytes.Buffer
-	code := cli.RunCLI(context.Background(), []string{"merge", "feature", "--repo", g.Dir}, "test", cli.Streams{Out: &out, Err: &err}, application.Application{})
-	if code != 0 || calls != 3 || !bytes.Contains(out.Bytes(), []byte("Status: succeeded")) {
+	code := cli.RunCLI(context.Background(), []string{"merge", "feature", "--verbose", "--repo", g.Dir}, "test", cli.Streams{Out: &out, Err: &err}, application.Application{})
+	if code != 0 || calls != 3 || !bytes.Contains(err.Bytes(), []byte("Merge completed successfully.")) || bytes.Contains(out.Bytes(), []byte("git-ez:")) {
 		t.Fatal(code, calls, out.String(), err.String())
 	}
+	for _, want := range []string{"Waiting for model response", "Tool 1: read_file", "Reported tokens:", "Model request finished"} {
+		if !bytes.Contains(err.Bytes(), []byte(want)) {
+			t.Fatal(want, err.String())
+		}
+	}
+	for _, forbidden := range []string{"authorization-secret", "hidden-reasoning", "filePath", "combined"} {
+		if bytes.Contains(err.Bytes(), []byte(forbidden)) {
+			t.Fatal("verbose exposed payload", err.String())
+		}
+	}
+
 }
 
 func TestCLIProbeUsesNativeConfigurationAndJSONStdout(t *testing.T) {

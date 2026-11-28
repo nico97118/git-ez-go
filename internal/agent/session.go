@@ -29,6 +29,7 @@ import (
 	"github.com/nico97118/git-ez-go/internal/git"
 	"github.com/nico97118/git-ez-go/internal/journal"
 	"github.com/nico97118/git-ez-go/internal/resolver"
+	"github.com/nico97118/git-ez-go/internal/terminal"
 )
 
 //go:embed prompt.txt
@@ -37,13 +38,17 @@ var policy string
 //go:embed prompt.txt
 var promptFS embed.FS
 
-type Adapter struct{ Config config.Config }
+type Adapter struct {
+	Config config.Config
+	Report *terminal.Reporter
+}
 
 func New(c config.Config) *Adapter { return &Adapter{Config: c} }
 
 var _ resolver.Resolver = (*Adapter)(nil)
 
 type session struct {
+	report                                             *terminal.Reporter
 	lastStatus                                         int
 	missingWireToolReference                           bool
 	initialFiles                                       map[string]string
@@ -109,7 +114,7 @@ func (a *Adapter) Resolve(ctx context.Context, stop resolver.Stop) (decision res
 		if e != nil {
 			return decision, e
 		}
-		return New(c).Resolve(ctx, stop)
+		return (&Adapter{Config: c, Report: a.Report}).Resolve(ctx, stop)
 	}
 	if err = a.Config.Validate(); err != nil {
 		return decision, err
@@ -127,7 +132,7 @@ func (a *Adapter) Resolve(ctx context.Context, stop resolver.Stop) (decision res
 		return decision, e
 	}
 	defer j.Close()
-	s := &session{config: a.Config, stop: stop, g: git.Client{Dir: stop.Worktree, Env: environmentFor(stop)}, evidence: j}
+	s := &session{report: a.Report, config: a.Config, stop: stop, g: git.Client{Dir: stop.Worktree, Env: environmentFor(stop)}, evidence: j}
 	defer func() {
 		if s.closeTransport != nil {
 			s.closeTransport()
@@ -327,7 +332,16 @@ func (s *session) New(context.Context) (*ai.Hooks, error) {
 			if s.config.Provider == "ollama" {
 				ctx = ollamaHistoryContext(ctx, p.Request)
 			}
+			waiting := s.report.Begin(ctx, "Waiting for model response")
 			response, e := next(ctx, p)
+			waiting()
+			s.report.Detail("  Model request finished (failed: %t)", e != nil)
+			if response != nil && response.Usage != nil {
+				u := response.Usage
+				if u.InputTokens != 0 || u.OutputTokens != 0 || u.TotalTokens != 0 {
+					s.report.Detail("  Reported tokens: input %d, output %d, total %d", u.InputTokens, u.OutputTokens, u.TotalTokens)
+				}
+			}
 			s.batched = false
 			if response != nil {
 				requests := response.ToolRequests()
@@ -354,6 +368,18 @@ func (s *session) New(context.Context) (*ai.Hooks, error) {
 			}
 
 			s.executed++
+			// Tool names come from the locally registered tool set. Never print inputs,
+			// results, model text, or provider error bodies.
+			name := p.Request.Name
+			switch name {
+			case "finish", "execute", "read_artifact", "read_file", "write_file", "edit_file", "list_files", "search_files":
+			default:
+				name = "filesystem tool"
+			}
+			s.report.Detail("  Tool %d: %s", s.executed, name)
+			toolProgress := s.report.Begin(ctx, "Applying or investigating resolution")
+			defer toolProgress()
+
 			if e := s.record("tool_started", p.Request); e != nil {
 				return nil, e
 			}

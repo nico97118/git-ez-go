@@ -12,6 +12,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/nico97118/git-ez-go/internal/config"
 	"github.com/nico97118/git-ez-go/internal/failure"
@@ -22,6 +23,7 @@ import (
 	"github.com/nico97118/git-ez-go/internal/resolver"
 	"github.com/nico97118/git-ez-go/internal/review"
 	"github.com/nico97118/git-ez-go/internal/sequence"
+	"github.com/nico97118/git-ez-go/internal/terminal"
 )
 
 type Request struct {
@@ -38,9 +40,13 @@ type Result struct {
 	Directory, Status, BeforeOID, ResultOID string
 	Integrated                              bool
 	ResolverCalls                           int
+	ConflictSets, ConflictFiles             int
+	ResolutionTime                          time.Duration
+	FinalValidationFailed                   bool
 	NativeStatus                            *int
 }
 type Engine struct {
+	Report   *terminal.Reporter
 	Git      git.Client
 	Config   config.Config
 	Resolver resolver.Resolver
@@ -346,6 +352,8 @@ func (s *session) execute(resumed bool) (result Result, err error) {
 	}
 	if len(s.request.Validation) > 0 {
 		if err = s.validate(); err != nil {
+			validation, _ := s.journal.View["validation"].(map[string]any)
+			s.result.FinalValidationFailed = validation["status"] != "passed"
 			return s.result, err
 		}
 	}
@@ -428,7 +436,19 @@ func (s *session) validate() error {
 	}
 	stdout := newDiagnostic(s.journal, "validation.stdout")
 	stderr := newDiagnostic(s.journal, "validation.stderr")
+	s.engine.Report.SetSecret(s.engine.Config.ResolvedAPIKey(s.lookupEnv))
+	// Redact literal arguments before shell-style quoting can split a secret.
+	displayArgs := make([]string, len(s.request.Validation))
+	for i, arg := range s.request.Validation {
+		displayArgs[i] = string(s.journal.Redact([]byte(arg)))
+	}
+	command := terminal.Command(displayArgs)
+	s.engine.Report.Info("git-ez: Validating resolution")
+	s.engine.Report.Info("  Running: %s", command)
+	stopProgress := s.engine.Report.Begin(s.ctx, "Check in progress")
+	defer stopProgress()
 	r, e := runValidation(s.ctx, s.engine.Git, s.request.Validation, s.engine.Config.TimeoutDuration(), stdout, stderr)
+	stopProgress()
 	for _, stream := range []string{"stdout", "stderr"} {
 		d := stdout
 		if stream == "stderr" {
@@ -454,9 +474,15 @@ func (s *session) validate() error {
 	if r.TimedOut {
 		v["status"] = "timed_out"
 	}
-	// Native-only checks deliberately have no persistent LLM journal. Preserve
-	// actionable failure diagnostics before the private workspace is removed.
-	if v["status"] != "passed" && !s.journal.Persistent() {
+	if v["status"] == "passed" {
+		s.engine.Report.Info("git-ez: Check passed.")
+	}
+	if v["status"] != "passed" {
+		s.engine.Report.Diagnostic("git-ez: Validation failed.")
+		s.engine.Report.Diagnostic("  Command: %s", command)
+		if r.Started && r.ExitCode >= 0 {
+			s.engine.Report.Diagnostic("  Exit code: %d", r.ExitCode)
+		}
 		destination := s.engine.Err
 		if destination == nil {
 			destination = io.Discard
@@ -476,6 +502,9 @@ func (s *session) validate() error {
 				}
 			}
 		}
+	}
+	if v["status"] != "passed" && s.journal.Persistent() {
+		s.engine.Report.Diagnostic("  Retained diagnostics (may be incomplete): %s", s.journal.Directory)
 	}
 	if saveErr := s.journal.Save(); saveErr != nil {
 		return errors.Join(e, saveErr)

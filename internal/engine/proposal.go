@@ -26,6 +26,7 @@ import (
 	"github.com/nico97118/git-ez-go/internal/process"
 	"github.com/nico97118/git-ez-go/internal/resolver"
 	"github.com/nico97118/git-ez-go/internal/sequence"
+	"github.com/nico97118/git-ez-go/internal/terminal"
 )
 
 var markers = regexp.MustCompile(`(?m)^(?:<{7,}|={7,}|>{7,}|\|{7,}).*$`)
@@ -228,6 +229,20 @@ func (s *session) guard(head, symbolic string, index []byte, identity *position)
 }
 func cleanupUncertain(err error) bool { return failure.IsKind(err, failure.Cleanup) }
 func (s *session) resolve(stages git.Conflicts, round int) (err error) {
+	s.engine.Report.SetSecret(s.engine.Config.ResolvedAPIKey(s.lookupEnv))
+	started := time.Now()
+	s.result.ConflictSets++
+	s.result.ConflictFiles += len(stages)
+	s.engine.Report.Info("git-ez: Resolving conflict set %d (%s)", s.result.ConflictSets, terminal.Count(len(stages), "file"))
+	s.engine.Report.Info("  Model: %s (%s)", s.engine.Config.Model, s.engine.Config.Provider)
+	defer func() {
+		elapsed := time.Since(started)
+		s.result.ResolutionTime += elapsed
+		if err == nil {
+			s.engine.Report.Info("git-ez: Conflict set resolved (%.1fs)", elapsed.Seconds())
+		}
+	}()
+
 	if !s.request.Interactive {
 		return s.resolveOnce(stages, round, nil)
 	}
@@ -396,7 +411,7 @@ func (s *session) resolveOnce(stages git.Conflicts, round int, state *conflictst
 		return s.journal.Save()
 	}
 	s.result.ResolverCalls++
-	decision, resolveErr := s.engine.Resolver.Resolve(s.ctx, stop)
+	decision, resolveErr := s.resolveAttempt(stop, 1)
 	review["resolution"] = decision
 	review["status"] = "proposed"
 	if e = child.JSON("decision.json", decision); e != nil {
@@ -435,6 +450,7 @@ func (s *session) resolveOnce(stages git.Conflicts, round int, state *conflictst
 	if e = s.ctx.Err(); e != nil {
 		return e
 	}
+	s.engine.Report.Info("git-ez: Validating proposal...")
 	if e = decision.Validate(); e != nil {
 		return e
 	}

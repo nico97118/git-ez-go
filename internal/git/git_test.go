@@ -177,3 +177,12 @@ func TestNativeVersionRequirement(t *testing.T) {
 		})
 	}
 }
+
+func TestMirroredLifecycleStreamsKeepCapturesAndNativeStatus(t *testing.T) {
+	g := testutil.Repo(t)
+	var out, diagnostics bytes.Buffer
+	result, err := g.RunWithFilesStreams(context.Background(), nil, "", &out, &diagnostics, "-c", "alias.terminal-fixture=!printf native-stdout; printf native-stderr >&2; exit 7", "terminal-fixture")
+	if err != nil || result.ExitCode != 7 || out.String() != "native-stdout" || diagnostics.String() != "native-stderr" || !bytes.Equal(result.Stdout, out.Bytes()) || !bytes.Equal(result.Stderr, diagnostics.Bytes()) {
+		t.Fatal(result, err, out.String(), diagnostics.String())
+	}
+}

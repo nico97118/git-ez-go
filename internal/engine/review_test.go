@@ -18,6 +18,7 @@ import (
 	"github.com/nico97118/git-ez-go/internal/locking"
 	"github.com/nico97118/git-ez-go/internal/process"
 	"github.com/nico97118/git-ez-go/internal/resolver"
+	"github.com/nico97118/git-ez-go/internal/terminal"
 	"github.com/nico97118/git-ez-go/internal/testutil"
 )
 
@@ -199,6 +200,9 @@ func TestInteractiveValidationRetryAndFreshFeedbackBudget(t *testing.T) {
 				testutil.Write(t, g, "file.txt", text)
 				return d, e
 			}))
+			var presentation bytes.Buffer
+			en.Err = &presentation
+			en.Report = terminal.New(&presentation, terminal.Default, "")
 			en.Config.ValidationAttempts = 2
 			key := "synthetic-secret"
 			en.Config.APIKey = &key
@@ -218,6 +222,12 @@ func TestInteractiveValidationRetryAndFreshFeedbackBudget(t *testing.T) {
 				if e == nil || r.Integrated || calls != 4 {
 					t.Fatal(r, e, calls)
 				}
+			}
+			if !strings.Contains(presentation.String(), "Check in progress") || !strings.Contains(presentation.String(), "Validation failed") || strings.Contains(presentation.String(), key) {
+				t.Fatal(presentation.String())
+			}
+			if !success && (strings.Contains(presentation.String(), "[a] Accept") || !strings.Contains(presentation.String(), "cannot be accepted")) {
+				t.Fatal(presentation.String())
 			}
 			if !strings.Contains(feedback[1], "diagnostic <redacted>") || strings.Contains(strings.Join(feedback, ""), key) {
 				t.Fatal("lost or unfiltered validation feedback", feedback)

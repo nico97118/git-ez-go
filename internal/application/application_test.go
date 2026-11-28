@@ -30,7 +30,7 @@ func TestProductionDispatchUsesNativeConfigurationAndGit(t *testing.T) {
 	testutil.Must(t, g, "config", "ez.model", "deterministic")
 	var out, err bytes.Buffer
 	code := cli.RunCLI(context.Background(), []string{"merge", "feature", "--repo", g.Dir}, "test", cli.Streams{Out: &out, Err: &err}, application.Application{})
-	if code != 0 || !bytes.Contains(out.Bytes(), []byte("Status: succeeded")) || testutil.Must(t, g, "rev-parse", "HEAD") != target {
+	if code != 0 || !bytes.Contains(out.Bytes(), []byte("Fast-forward")) || strings.Contains(err.String(), "git-ez:") || strings.Contains(out.String(), "Status:") || testutil.Must(t, g, "rev-parse", "HEAD") != target {
 		t.Fatal(code, out.String(), err.String())
 	}
 }
@@ -164,7 +164,7 @@ func TestInterruptedFinalValidationDoesNotRecommendContinuingCompletedGit(t *tes
 			if native {
 				expected = 130
 			}
-			if !<-done || code != expected || !strings.Contains(out.String(), "Git integration completed: true") || strings.Contains(diag.String(), "git ez merge --continue") {
+			if !<-done || code != expected || !strings.Contains(diag.String(), "Git integration is complete.") || !strings.Contains(diag.String(), "Final validation failed.") || strings.Contains(out.String(), "Git integration completed:") || strings.Contains(diag.String(), "git ez merge --continue") {
 				t.Fatal(code, out.String(), diag.String())
 			}
 			active, err := g.Active(context.Background())
@@ -187,7 +187,7 @@ func TestModelFreeValidationFailureKeepsDiagnosticsWithoutPersistentAudit(t *tes
 	testutil.Must(t, g, "config", "ez.apiKey", "diagnostic-secret")
 	var out, diag bytes.Buffer
 	code := cli.RunCLI(context.Background(), []string{"merge", "feature", "--repo", g.Dir, "--check", "sh", "-c", "printf native-check-diagnostic; printf diagnostic-secret >&2; exit 7"}, "test", cli.Streams{Out: &out, Err: &diag}, application.Application{})
-	if code != 1 || !strings.Contains(out.String(), "Git integration completed: true") || !strings.Contains(diag.String(), "native-check-diagnostic") || !strings.Contains(diag.String(), "<redacted>") || strings.Contains(diag.String(), "diagnostic-secret") {
+	if code != 1 || !strings.Contains(diag.String(), "Git integration is complete.") || !strings.Contains(diag.String(), "Final validation failed.") || strings.Contains(out.String(), "Git integration completed:") || !strings.Contains(diag.String(), "native-check-diagnostic") || !strings.Contains(diag.String(), "<redacted>") || strings.Contains(diag.String(), "diagnostic-secret") {
 		t.Fatal(code, out.String(), diag.String())
 	}
 	if entries, err := os.ReadDir(filepath.Join(g.Dir, ".git/ez/runs")); err != nil || len(entries) != 0 {

@@ -7,6 +7,8 @@ import (
 	"github.com/nico97118/git-ez-go/internal/application"
 	"github.com/nico97118/git-ez-go/internal/cli"
 	"github.com/nico97118/git-ez-go/internal/sequence"
+	"io"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -15,6 +17,9 @@ import (
 var version = "0.1.0-dev"
 
 func main() {
+	// User diagnostics flow through the CLI reporter and local audit. Framework
+	// console logs can contain unrestricted payloads and corrupt active prompts.
+	slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if len(os.Args) > 1 && os.Args[1] == sequence.Helper {
 		os.Exit(sequence.Main(os.Args[2:]))
 	}

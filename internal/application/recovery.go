@@ -24,7 +24,22 @@ func continuationHint(ctx context.Context, g git.Client, c config.Config, q cli.
 	if err != nil || !active {
 		return
 	}
+	if q.Command == "cherry-pick" {
+		sequencer, err := g.HasMarker(ctx, "sequencer")
+		if err != nil {
+			return
+		}
+		if sequencer {
+			fmt.Fprintln(out, "Cherry-pick sequence is still in progress. Inspect it and use native Git in the repository:\n  git cherry-pick --continue")
+			return
+		}
+	}
 	args := []string{"git", "ez", q.Command, "--continue"}
+	if q.Quiet {
+		args = append(args, "--quiet")
+	} else if q.Verbose {
+		args = append(args, "--verbose")
+	}
 	if q.Interactive {
 		args = append(args, "--interactive")
 	}
@@ -70,7 +85,7 @@ func continuationHint(ctx context.Context, g git.Client, c config.Config, q cli.
 		}
 		args[i] = shellArgument(arg)
 	}
-	fmt.Fprintf(out, "%s interrupted. Resolve the current conflict manually and stage it, then resume with:\n  %s\nOr use native Git in the repository:\n  git %s --continue\n", q.Command, review.SafeText(strings.Join(args, " ")), q.Command)
+	fmt.Fprintf(out, "%s is still in progress. Resolve the remaining conflicts manually and stage them, then resume with:\n  %s\nOr use native Git in the repository:\n  git %s --continue\n", q.Command, review.SafeText(strings.Join(args, " ")), q.Command)
 }
 func shellArgument(value string) string {
 	if value != "" && strings.IndexFunc(value, func(r rune) bool {
