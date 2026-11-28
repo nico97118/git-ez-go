@@ -42,6 +42,7 @@ type Request struct {
 	MessageFile           *string
 	RunID, AuditPath      *string
 	Verbose               bool
+	Quiet                 bool
 }
 
 func usage(message string) error { return failure.New(failure.Usage, message) }
@@ -66,7 +67,7 @@ func specs(command, subcommand string) []flagSpec {
 	if command == "probe" {
 		return s
 	}
-	s = append(s, flagSpec{"interactive", "", 0}, flagSpec{"continue", "", 0}, flagSpec{"repo", "", 1}, flagSpec{"check", "", 1}, flagSpec{"gpg-sign", "S", 2}, flagSpec{"no-gpg-sign", "", 0}, flagSpec{"signoff", "", 0}, flagSpec{"no-signoff", "", 0}, flagSpec{"rerere-autoupdate", "", 0}, flagSpec{"no-rerere-autoupdate", "", 0})
+	s = append(s, flagSpec{"quiet", "q", 0}, flagSpec{"verbose", "v", 0}, flagSpec{"interactive", "", 0}, flagSpec{"continue", "", 0}, flagSpec{"repo", "", 1}, flagSpec{"check", "", 1}, flagSpec{"gpg-sign", "S", 2}, flagSpec{"no-gpg-sign", "", 0}, flagSpec{"signoff", "", 0}, flagSpec{"no-signoff", "", 0}, flagSpec{"rerere-autoupdate", "", 0}, flagSpec{"no-rerere-autoupdate", "", 0})
 	if command == "rebase" {
 		s = append(s, flagSpec{"onto", "", 1}, flagSpec{"empty", "", 1}, flagSpec{"force-rebase", "f", 0}, flagSpec{"no-ff", "", 0}, flagSpec{"ff", "", 0})
 		for _, name := range []string{"keep-base", "fork-point", "autosquash", "keep-empty", "reapply-cherry-picks"} {
@@ -216,6 +217,10 @@ func Parse(input []string) (Request, error) {
 			r.AuditPath = &value
 		case "verbose":
 			r.Verbose = true
+			r.Quiet = false
+		case "quiet":
+			r.Quiet = true
+			r.Verbose = false
 		default:
 			return usage("Unsupported option")
 		}
@@ -366,7 +371,7 @@ func Parse(input []string) (Request, error) {
 			return r, usage("--continue cannot be combined with a target")
 		}
 		if r.Onto != nil || r.Rebase.Present() || r.Commit.Present() || r.MergeFF != "" || r.RerereAutoupdate.Present() || r.MessageFile != nil || len(r.MessageParagraphs) > 0 {
-			return r, usage("--continue only accepts --repo, --interactive and --check")
+			return r, usage("--continue only accepts --repo, --interactive, --quiet, --verbose and --check")
 		}
 	} else if r.Target == nil {
 		return r, usage("A target or --continue is required")

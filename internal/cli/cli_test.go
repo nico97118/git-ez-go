@@ -209,3 +209,29 @@ func TestMessageFilePreservesPhysicalParentSemantics(t *testing.T) {
 		}
 	}
 }
+
+func TestReportingFlagsAreLocalAndCheckArgvRemainsLiteral(t *testing.T) {
+	for _, op := range []string{"merge", "rebase", "cherry-pick"} {
+		for _, tail := range [][]string{{"main"}, {"--continue"}} {
+			args := append([]string{op, "--quiet", "--verbose"}, tail...)
+			args = append(args, "--check", "tool", "--quiet", "--verbose")
+			q, err := Parse(args)
+			if err != nil || !q.Verbose || q.Quiet || len(q.Check) != 3 || q.Check[1] != "--quiet" {
+				t.Fatal(q, err)
+			}
+			q, err = Parse(append([]string{op, "-vq"}, tail...))
+			if err != nil || !q.Quiet || q.Verbose {
+				t.Fatal(q, err)
+			}
+		}
+	}
+	q, err := Parse([]string{"audit", "show", "--verbose"})
+	if err != nil || !q.Verbose {
+		t.Fatal(q, err)
+	}
+	for _, cmd := range []string{"probe", "audit"} {
+		if _, err := Parse([]string{cmd, "--quiet"}); err == nil {
+			t.Fatal("reporting flag broadened command grammar", cmd)
+		}
+	}
+}

@@ -121,6 +121,7 @@ func HelpText(r Request) string {
 	}
 	if r.Command == "rebase" || r.Command == "merge" || r.Command == "cherry-pick" {
 		b.WriteString("\n--check must be final; following arguments are literal executable arguments.\n")
+		b.WriteString("--quiet / --verbose control git-ez stderr reporting only; native Git output is unchanged.\n")
 	}
 	return b.String()
 }
