@@ -13,7 +13,8 @@ accept `--quiet`/`-q` and `--verbose`/`-v`. These control git-ez reporting only;
 they do not change native Git output or get forwarded to Git. Previously these
 options were rejected. The last verbosity option wins. Options following
 `--check` remain literal check arguments. `audit show --verbose` retains its
-existing evidence-expansion meaning; probe has no new reporting flags.
+existing evidence-expansion meaning. Probe uses `--format=text` (the default)
+or `--format=json` to select its stdout report.
 
 Default output reports conflict sets, configured provider/model, resolution
 attempts, proposal validation and user checks. Verbose output additionally
@@ -120,10 +121,10 @@ native Git advice only. Audit paths appear only for retained audits.
 
 ## Streams and terminal capabilities
 
-Stdout carries explicitly requested results (`probe` JSON, audit reports, help,
+Stdout carries explicitly requested results (the readable `probe` report or explicit JSON, audit reports, help,
 version) and native Git stdout. Progress, assisted summaries, review, warnings,
-errors and recovery instructions use stderr. Probe continues to emit a final JSON
-report on stdout even on protocol failure. Audit pager behavior is unchanged.
+errors and recovery instructions use stderr. Probe emits its selected report on stdout even on protocol failure.
+Use `git ez probe --format=json` for the original structured report. Audit pager behavior is unchanged.
 
 On a capable stderr terminal, active model/tool/check stages use an ASCII spinner
 with elapsed time. No percentages, colors, hidden-cursor modes or terminal-mode
@@ -140,5 +141,34 @@ been replaced by human summaries on stderr, omitted on native-only success. Revi
 also moved from stdout to stderr. Scripts parsing those human strings must adapt;
 use exit codes for success/failure and offline audit evidence when needed. There
 is no integration JSON-output option. The engine's structured result and audit
-schema are retained. Probe JSON, audit results, help/version and existing exit-code
-policies are unchanged.
+schema are retained. Probe now defaults to readable text; `--format=json` preserves
+the JSON schema. Audit results, help/version and existing exit-code policies are
+unchanged.
+
+## Provider probe
+
+`git ez probe` invokes the configured model and checks protocol compatibility.
+The default report lists provider/model, recorded check outcomes (`OK` or `FAIL`)
+and checks not reached (`NOT RUN`). Transport failures can prevent a check from
+producing an outcome; they are reported without inventing a failed check result.
+Only the recorded safe error message and available HTTP status are included;
+raw model responses and implementation error types are omitted from text.
+
+```text
+Provider: ollama
+Model: qwen3:8b
+
+[OK] Chat response
+[OK] Native tool calling
+[OK] Response after tool execution
+
+Provider protocol is compatible.
+Conflict-resolution quality was not tested.
+```
+
+Use `git ez probe --format=json > compatibility.json` for structured data,
+including recorded response evidence. The JSON schema is unchanged. Both formats
+return 0 for compatibility, 1 for a failed protocol probe, and retain existing
+configuration/output-error handling (2). Configuration/admission errors can stop
+the command before a report is available. Diagnostics use stderr. Formatting does
+not change the three-check protocol or add model calls.

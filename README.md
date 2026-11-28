@@ -69,7 +69,8 @@ git config ez.apiKeyEnv MY_MODEL_TOKEN
 git ez probe
 ```
 
-`probe` invokes the configured model and can incur provider charges. The Responses
+`probe` displays a readable compatibility report; use `git ez probe --format=json`
+for structured output. It invokes the configured model and can incur provider charges. The Responses
 API is not supported. Both providers support explicit CA bundles and intentional
 transport settings; see the [configuration reference](docs/configuration.md).
 

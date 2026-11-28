@@ -102,7 +102,7 @@ func HelpText(r Request) string {
 			b.WriteByte('\n')
 		}
 	case "probe":
-		b.WriteString("\n\nWrite the final JSON compatibility report to stdout; diagnostics use stderr.\n")
+		b.WriteString("\n\nWrite a readable compatibility report to stdout; use --format=json for JSON. Diagnostics use stderr.\n")
 	default:
 		b.WriteString(" [options] <target> | --continue\n")
 	}

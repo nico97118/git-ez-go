@@ -61,6 +61,13 @@ func (a Application) Execute(ctx context.Context, q cli.Request, streams cli.Str
 	}
 	if q.Command == "probe" {
 		body, ok := agent.Probe(ctx, c)
+		if q.Format != "json" {
+			readable, err := probeText(body)
+			if err != nil {
+				return 2, failure.Wrap(failure.Precondition, "Cannot render provider probe report", err)
+			}
+			body = []byte(readable)
+		}
 		if _, err := fmt.Fprintln(streams.Out, string(body)); err != nil {
 			return 2, failure.Wrap(failure.Precondition, "Cannot write provider probe report", err)
 		}

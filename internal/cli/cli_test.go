@@ -235,3 +235,17 @@ func TestReportingFlagsAreLocalAndCheckArgvRemainsLiteral(t *testing.T) {
 		}
 	}
 }
+
+func TestProbeFormatIsExplicitAndScoped(t *testing.T) {
+	for _, format := range []string{"text", "json"} {
+		q, err := Parse([]string{"probe", "--format=" + format})
+		if err != nil || q.Format != format {
+			t.Fatal(q, err)
+		}
+	}
+	for _, args := range [][]string{{"probe", "--format=yaml"}, {"probe", "--format"}, {"merge", "main", "--format=json"}, {"audit", "show", "--format=json"}} {
+		if _, err := Parse(args); err == nil {
+			t.Fatal("invalid format accepted", args)
+		}
+	}
+}

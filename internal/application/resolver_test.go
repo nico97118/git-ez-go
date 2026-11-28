@@ -78,12 +78,16 @@ func TestCLIProbeUsesNativeConfigurationAndJSONStdout(t *testing.T) {
 	testutil.Must(t, g, "config", "ez.model", "fixture")
 	t.Chdir(g.Dir)
 	var calls atomic.Int32
+	var mismatch atomic.Bool
 	markerPattern := regexp.MustCompile(`ez-[a-f0-9]{32}`)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var request map[string]any
 		_ = json.NewDecoder(r.Body).Decode(&request)
 		raw, _ := json.Marshal(request)
 		marker := markerPattern.FindString(string(raw))
+		if mismatch.Load() {
+			marker = "incompatible"
+		}
 		call := calls.Add(1)
 		message := map[string]any{"role": "assistant", "content": marker}
 		reason := "stop"
@@ -98,17 +102,45 @@ func TestCLIProbeUsesNativeConfigurationAndJSONStdout(t *testing.T) {
 	defer server.Close()
 	testutil.Must(t, g, "config", "ez.endpoint", server.URL+"/v1/chat/completions")
 	var out, err bytes.Buffer
-	code := cli.RunCLI(context.Background(), []string{"probe"}, "test", cli.Streams{Out: &out, Err: &err}, application.Application{})
+	code := cli.RunCLI(context.Background(), []string{"probe", "--format=json"}, "test", cli.Streams{Out: &out, Err: &err}, application.Application{})
 	var report map[string]any
 	if code != 0 || calls.Load() != 3 || json.Unmarshal(out.Bytes(), &report) != nil || report["status"] != "compatible" || err.Len() != 0 {
 		t.Fatal(code, out.String(), err.String())
 	}
 
+	out.Reset()
+	code = cli.RunCLI(context.Background(), []string{"probe"}, "test", cli.Streams{Out: &out, Err: &err}, application.Application{})
+	if code != 0 || calls.Load() != 6 || !bytes.Contains(out.Bytes(), []byte("[OK] Native tool calling")) || !bytes.Contains(out.Bytes(), []byte("Conflict-resolution quality was not tested.")) || json.Valid(out.Bytes()) || err.Len() != 0 {
+		t.Fatal(code, out.String(), err.String())
+	}
+
 	err.Reset()
-	code = cli.RunCLI(context.Background(), []string{"probe"}, "test", cli.Streams{Out: failedProbeWriter{}, Err: &err}, application.Application{})
-	if code != 2 || calls.Load() != 6 {
+	code = cli.RunCLI(context.Background(), []string{"probe", "--format=json"}, "test", cli.Streams{Out: failedProbeWriter{}, Err: &err}, application.Application{})
+	if code != 2 || calls.Load() != 9 {
 		t.Fatal("probe stdout failure status", code, calls.Load(), err.String())
 	}
+	err.Reset()
+	code = cli.RunCLI(context.Background(), []string{"probe"}, "test", cli.Streams{Out: failedProbeWriter{}, Err: &err}, application.Application{})
+	if code != 2 || calls.Load() != 12 {
+		t.Fatal(code, calls.Load(), err.String())
+	}
+	mismatch.Store(true)
+	for _, args := range [][]string{{"probe"}, {"probe", "--format=json"}} {
+		out.Reset()
+		err.Reset()
+		code = cli.RunCLI(context.Background(), args, "test", cli.Streams{Out: &out, Err: &err}, application.Application{})
+		if code != 1 || err.Len() != 0 {
+			t.Fatal(code, out.String(), err.String())
+		}
+		if len(args) > 1 {
+			if json.Unmarshal(out.Bytes(), &report) != nil || report["status"] != "failed" {
+				t.Fatal(out.String())
+			}
+		} else if !bytes.Contains(out.Bytes(), []byte("[FAIL] Chat response")) || !bytes.Contains(out.Bytes(), []byte("[NOT RUN] Native tool calling")) {
+			t.Fatal(out.String())
+		}
+	}
+
 }
 
 type failedProbeWriter struct{}

@@ -43,6 +43,7 @@ type Request struct {
 	RunID, AuditPath      *string
 	Verbose               bool
 	Quiet                 bool
+	Format                string
 }
 
 func usage(message string) error { return failure.New(failure.Usage, message) }
@@ -65,7 +66,7 @@ func specs(command, subcommand string) []flagSpec {
 		return s
 	}
 	if command == "probe" {
-		return s
+		return append(s, flagSpec{"format", "", 1})
 	}
 	s = append(s, flagSpec{"quiet", "q", 0}, flagSpec{"verbose", "v", 0}, flagSpec{"interactive", "", 0}, flagSpec{"continue", "", 0}, flagSpec{"repo", "", 1}, flagSpec{"check", "", 1}, flagSpec{"gpg-sign", "S", 2}, flagSpec{"no-gpg-sign", "", 0}, flagSpec{"signoff", "", 0}, flagSpec{"no-signoff", "", 0}, flagSpec{"rerere-autoupdate", "", 0}, flagSpec{"no-rerere-autoupdate", "", 0})
 	if command == "rebase" {
@@ -215,6 +216,11 @@ func Parse(input []string) (Request, error) {
 		case "path":
 			value = pathArgument(value)
 			r.AuditPath = &value
+		case "format":
+			if value != "text" && value != "json" {
+				return usage("--format must be text or json")
+			}
+			r.Format = value
 		case "verbose":
 			r.Verbose = true
 			r.Quiet = false

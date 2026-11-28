@@ -55,7 +55,7 @@ to Git. Audit show retains its existing verbose evidence behavior.
 .SH TERMINAL OUTPUT
 Native Git stdout and stderr retain their routing. Native-only success adds no
 git-ez summary. Progress, assisted summaries, reviews and recovery advice use
-stderr. Help, version, audit results and probe JSON use stdout.
+stderr. Help, version, audit results and probe reports use stdout.
 .PP
 Capable stderr terminals receive elapsed-time spinners; pipes and dumb terminals
 receive stage lines without animation. No colors are used, including when
@@ -69,8 +69,20 @@ integration and never recommends continuing an already completed operation.
 .PP
 The former Status/Git integration completed/Journal stdout block is replaced by
 human summaries on stderr. Scripts parsing those strings must adapt; exit-code,
-probe JSON and offline audit contracts are unchanged.
+explicit probe JSON and offline audit contracts are unchanged.
 See docs/terminal.md for examples and statistics definitions.
+.SH PROBE
+.B git ez probe
+prints a readable provider/model and compatibility-check report. Checks not reached
+are marked NOT RUN. Compatibility does not establish conflict-resolution quality.
+The command invokes the configured model and can incur provider charges.
+.PP
+Use
+.B --format=json
+for the original structured JSON report, including on protocol failure.
+.B --format=text
+explicitly selects the default human format. Reports use stdout; diagnostics use
+stderr. Configuration errors may prevent any report. Exit codes remain unchanged.
 .SH CONFIGURATION
 Use native Git configuration under
 .BR ez.* .
